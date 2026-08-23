@@ -13,14 +13,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  XWALK_HOST_PACKAGES: >-
-    ansible-core clang clang-format clang-tools cmake cppcheck gcovr jq libasound2-dev
-    libboost-dev libclang-rt-18-dev libcurl4-openssl-dev libgmock-dev libgrpc++-dev
-    libgtest-dev libjson-c-dev libopencv-dev libprotobuf-dev libsndfile1-dev libtinyxml2-dev
-    libyaml-cpp-dev llvm ninja-build nodejs protobuf-compiler
-    protobuf-compiler-grpc python3-nacl python3-yaml shellcheck valgrind
-
 jobs:
   preparation:
     name: xWalk Preparation
@@ -30,8 +22,8 @@ jobs:
       - uses: actions/checkout@v6
       - name: Check out exact Gerrit component commits
         run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
-      - name: Install xWalk host validation dependencies
-        run: scripts/integration/shell-agent/quality-tool/install-github-host-packages.sh $XWALK_HOST_PACKAGES
+      - name: Validate xWalk host dependencies
+        run: scripts/integration/shell-agent/quality-tool/check-host-quality-dependencies.sh
       - name: Validate shell scripts and CI metadata
         run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh preparation
       - name: Validate C++ formatting
