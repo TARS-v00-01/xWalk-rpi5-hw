@@ -1,0 +1,1069 @@
+#!/usr/bin/env python3
+###############################################################################
+# @file        xHal_Rpi5CarDependencyInstaller
+# @brief       Checks and installs xWalk operating-system dependencies.
+#
+# @details
+# Reads the machine-readable catalog in apt-packages.txt, selects dependencies
+# for the detected or requested platform, skips installed packages, installs
+# missing supported packages, and prints a per-module result table.
+#
+# @project     xWalk Firmware
+# @module      xWalk-rpi5-tool
+#
+# @author      Joxy John
+# @date        2026-08-02
+# @version     1.0.0
+#
+# Copyright (c) 2026 Joxy John.
+# All rights reserved.
+###############################################################################
+
+"""Install xWalk dependencies through a supported operating-system package manager."""
+
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import hashlib
+import os
+import pathlib
+import platform
+import re
+import shutil
+import subprocess
+import sys
+
+
+CATALOG_START = "XWALK MACHINE-READABLE PACKAGE CATALOG V1"
+CATALOG_END = "XWALK MACHINE-READABLE PACKAGE CATALOG END"
+SUPPORTED_SCOPES = ("audio", "quality", "release", "generator", "external")
+ROBOT_HAT_V5_UUID = "9daeea78-0000-076e-0032-582369ac3e02"
+ROBOT_HAT_V5_OVERLAY = "sunfounder-robothat5"
+ROBOT_HAT_V5_SHA256 = "a369878d660b1927a203b2332bab739e6e7951698e37a25587c8336f27ddb07c"
+
+APT_SYSTEMS = frozenset(
+    {"debian", "ubuntu", "raspbian", "linuxmint", "pop", "elementary"}
+)
+DNF_SYSTEMS = frozenset(
+    {"fedora", "rhel", "centos", "rocky", "almalinux", "ol"}
+)
+PACMAN_SYSTEMS = frozenset({"arch", "manjaro", "endeavouros"})
+MACOS_SYSTEMS = frozenset({"macos", "darwin", "osx"})
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[3]
+
+
+@dataclasses.dataclass(frozen=True)
+class PackageEntry:
+    """One logical dependency and its package-manager mappings."""
+
+    identifier: str
+    scope: str
+    targets: tuple[str, ...]
+    groups: tuple[str, ...]
+    packages: dict[str, tuple[str, ...]]
+
+
+@dataclasses.dataclass(frozen=True)
+class PackageCatalog:
+    """Parsed dependency groups and package entries."""
+
+    groups: dict[str, tuple[str, ...]]
+    packages: tuple[PackageEntry, ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class PlatformSelection:
+    """Detected operating system and package-manager family."""
+
+    os_name: str
+    family: str
+    manager: str
+
+
+@dataclasses.dataclass
+class ResultRow:
+    """One module/package status displayed in the final table."""
+
+    module: str
+    dependency: str
+    package: str
+    installed: bool
+    issue: str
+
+
+def split_values(value: str) -> tuple[str, ...]:
+    """Split one comma-separated manifest field."""
+    if value == "-" or not value:
+        return ()
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def parse_catalog(path: pathlib.Path) -> PackageCatalog:
+    """Read and validate the machine-readable section of the package manifest."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    inside_catalog = False
+    found_end = False
+    groups: dict[str, list[str]] = {}
+    packages: list[PackageEntry] = []
+
+    for line_number, source_line in enumerate(lines, start=1):
+        line = source_line.strip()
+        if line == CATALOG_START:
+            inside_catalog = True
+            continue
+        if line == CATALOG_END:
+            found_end = True
+            break
+        if not inside_catalog or not line or line.startswith("#"):
+            continue
+
+        fields = tuple(field.strip() for field in line.split("|"))
+        if fields[0] == "group":
+            if len(fields) != 3 or not fields[1] or not split_values(fields[2]):
+                raise ValueError(f"invalid group record at {path}:{line_number}")
+            group_values = groups.setdefault(fields[1], [])
+            for module in split_values(fields[2]):
+                if module not in group_values:
+                    group_values.append(module)
+            continue
+        if fields[0] != "package" or len(fields) != 9:
+            raise ValueError(f"invalid package record at {path}:{line_number}")
+        if not fields[1] or not fields[2]:
+            raise ValueError(f"empty package identifier or scope at {path}:{line_number}")
+        packages.append(
+            PackageEntry(
+                identifier=fields[1],
+                scope=fields[2],
+                targets=split_values(fields[3]),
+                groups=split_values(fields[4]),
+                packages={
+                    "apt": split_values(fields[5]),
+                    "dnf": split_values(fields[6]),
+                    "pacman": split_values(fields[7]),
+                    "brew": split_values(fields[8]),
+                },
+            )
+        )
+
+    if not inside_catalog or not found_end:
+        raise ValueError(f"package catalog markers are missing from {path}")
+    if not packages:
+        raise ValueError(f"package catalog contains no packages: {path}")
+
+    immutable_groups = {name: tuple(values) for name, values in groups.items()}
+    for package in packages:
+        unknown_groups = tuple(group for group in package.groups if group not in immutable_groups)
+        if unknown_groups:
+            raise ValueError(
+                f"package {package.identifier} references unknown groups: "
+                f"{', '.join(unknown_groups)}"
+            )
+    return PackageCatalog(immutable_groups, tuple(packages))
+
+
+def read_os_release(path: pathlib.Path = pathlib.Path("/etc/os-release")) -> dict[str, str]:
+    """Read simple key/value fields from os-release without executing shell content."""
+    values: dict[str, str] = {}
+    if not path.is_file() or not os.access(path, os.R_OK):
+        return values
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if "=" not in line or line.lstrip().startswith("#"):
+            continue
+        key, value = line.split("=", maxsplit=1)
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def classify_linux(os_name: str, related_names: tuple[str, ...]) -> PlatformSelection:
+    """Map a Linux distribution identifier to one supported package family."""
+    candidates = (os_name, *related_names)
+    if any(candidate in APT_SYSTEMS for candidate in candidates):
+        return PlatformSelection(os_name, "debian", "apt")
+    if any(candidate in DNF_SYSTEMS for candidate in candidates):
+        return PlatformSelection(os_name, "fedora", "dnf")
+    if any(candidate in PACMAN_SYSTEMS for candidate in candidates):
+        return PlatformSelection(os_name, "arch", "pacman")
+    raise ValueError(
+        f"unsupported Linux distribution '{os_name}'; supported package families are "
+        "Debian/Ubuntu/Raspberry Pi OS, Fedora/RHEL, and Arch/Manjaro"
+    )
+
+
+def select_platform(requested_os: str) -> PlatformSelection:
+    """Resolve an explicit OS name or detect the current operating system."""
+    normalized = requested_os.lower()
+    if normalized in MACOS_SYSTEMS:
+        return PlatformSelection("macos", "macos", "brew")
+    if normalized != "auto":
+        if normalized == "linux":
+            release = read_os_release()
+            detected_name = release.get("ID", "linux").lower()
+            related = tuple(release.get("ID_LIKE", "").lower().split())
+            return classify_linux(detected_name, related)
+        return classify_linux(normalized, ())
+
+    system_name = platform.system().lower()
+    if system_name == "darwin":
+        return PlatformSelection("macos", "macos", "brew")
+    if system_name != "linux":
+        raise ValueError(f"unsupported operating system: {platform.system()}")
+    release = read_os_release()
+    detected_name = release.get("ID", "linux").lower()
+    related = tuple(release.get("ID_LIKE", "").lower().split())
+    return classify_linux(detected_name, related)
+
+
+def is_raspberry_pi() -> bool:
+    """Return whether the local Device Tree identifies a Raspberry Pi."""
+    model_path = pathlib.Path("/proc/device-tree/model")
+    if not model_path.is_file() or not os.access(model_path, os.R_OK):
+        return False
+    model = model_path.read_bytes().replace(b"\x00", b"").decode("utf-8", errors="replace")
+    return "Raspberry Pi" in model
+
+
+def resolve_target(requested_target: str, selected_platform: PlatformSelection) -> str:
+    """Select host or Raspberry Pi dependency scope."""
+    target = requested_target
+    if target == "auto":
+        target = "rpi" if is_raspberry_pi() else "host"
+    if target == "rpi" and selected_platform.family == "macos":
+        raise ValueError("the Raspberry Pi target requires a supported Linux distribution")
+    return target
+
+
+def selected_scopes(arguments: argparse.Namespace, target: str) -> set[str]:
+    """Build the requested manifest scope set."""
+    scopes = {"required"}
+    scopes.update(arguments.include)
+    if not arguments.required_only:
+        scopes.update(SUPPORTED_SCOPES)
+    camera = arguments.camera
+    if camera == "auto":
+        camera = "csi" if target == "rpi" else "none"
+    if target == "rpi" and camera != "none":
+        scopes.add(f"camera-{camera}")
+    return scopes
+
+
+def filter_packages(
+    catalog: PackageCatalog, target: str, scopes: set[str]
+) -> tuple[PackageEntry, ...]:
+    """Return catalog entries matching one target and the requested scopes."""
+    return tuple(
+        package
+        for package in catalog.packages
+        if target in package.targets and package.scope in scopes
+    )
+
+
+def run_process(
+    command: list[str], input_text: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run one command without shell interpretation or exception-on-status behavior."""
+    return subprocess.run(
+        command, check=False, capture_output=True, text=True, input=input_text
+    )
+
+
+def native_architecture(machine_name: str) -> str | None:
+    """Map one machine name to an xWalkLibrary native prefix."""
+    normalized = machine_name.lower()
+    if normalized in {"aarch64", "arm64"}:
+        return "aarch64"
+    if normalized in {"x86_64", "amd64"}:
+        return "x86_64"
+    return None
+
+
+def vosk_status(repository_root: pathlib.Path = REPOSITORY_ROOT) -> tuple[bool, str]:
+    """Check the selected or architecture-local Vosk runtime and shared model."""
+    architecture = native_architecture(platform.machine())
+    configured_library = os.environ.get(
+        "XWALK_VOSK_LIBRARY_PATH", os.environ.get("XWALK_VOSK_LIBRARY", "")
+    )
+    configured_model = os.environ.get("XWALK_VOSK_MODEL_PATH", "")
+    if configured_library:
+        library_path = pathlib.Path(configured_library)
+    elif architecture is not None:
+        library_path = (
+            repository_root
+            / "xWalk-rpi5-hw"
+            / "xWalkLibrary"
+            / architecture
+            / "lib"
+            / "libvosk.so"
+        )
+    else:
+        return False, f"xWalkLibrary has no Vosk runtime for {platform.machine()}"
+    model_path = (
+        pathlib.Path(configured_model)
+        if configured_model
+        else repository_root
+        / "xWalk-rpi5-hw"
+        / "xWalkLibrary"
+        / "common"
+        / "models"
+        / "vosk"
+        / "vosk-model-small-en-us-0.15"
+    )
+    if not library_path.is_file():
+        return False, f"Vosk library is missing: {library_path}"
+    if not model_path.is_dir():
+        return False, f"Vosk model is missing: {model_path}"
+    return True, f"project-managed Vosk runtime and model ({architecture or 'override'})"
+
+
+def special_status(package: str) -> tuple[bool, str]:
+    """Check a dependency that is not managed as a normal package."""
+    if package == "@xcode-clt":
+        executable = shutil.which("xcode-select")
+        if executable is None:
+            return False, "xcode-select is unavailable"
+        result = run_process([executable, "-p"])
+        return result.returncode == 0, "Apple Command Line Tools"
+    if package == "@ollama":
+        return shutil.which("ollama") is not None, "external Ollama executable"
+    if package == "@vosk":
+        return vosk_status()
+    return False, f"unknown special dependency: {package}"
+
+
+def normal_package_status(manager: str, package: str) -> tuple[bool, str]:
+    """Query one package through the selected package manager's local database."""
+    if manager == "apt":
+        executable = shutil.which("dpkg-query")
+        command = [executable, "-W", "-f=${Status}", package] if executable else []
+        expected = "install ok installed"
+    elif manager == "dnf":
+        executable = shutil.which("rpm")
+        command = [executable, "-q", package] if executable else []
+        expected = ""
+    elif manager == "pacman":
+        executable = shutil.which("pacman")
+        command = [executable, "-Q", package] if executable else []
+        expected = ""
+    else:
+        executable = shutil.which("brew")
+        command = [executable, "list", "--versions", package] if executable else []
+        expected = ""
+
+    if not command:
+        return False, f"{manager} package query executable is unavailable"
+    result = run_process(command)
+    installed = result.returncode == 0
+    if manager == "apt":
+        installed = installed and expected in result.stdout.strip()
+    return installed, "already installed" if installed else "not installed"
+
+
+def package_status(manager: str, package: str) -> tuple[bool, str]:
+    """Query one normal or special dependency."""
+    if package.startswith("@"):
+        return special_status(package)
+    return normal_package_status(manager, package)
+
+
+def display_package_name(package: str) -> str:
+    """Return a human-readable name for a special or normal package."""
+    names = {
+        "@xcode-clt": "Apple Command Line Tools",
+        "@ollama": "Ollama",
+        "@vosk": "Vosk library/model",
+    }
+    return names.get(package, package)
+
+
+def modules_for_entry(catalog: PackageCatalog, entry: PackageEntry) -> tuple[str, ...]:
+    """Expand manifest group identifiers into unique module names."""
+    modules: list[str] = []
+    for group in entry.groups:
+        for module in catalog.groups[group]:
+            if module not in modules:
+                modules.append(module)
+    return tuple(modules)
+
+
+def build_rows(
+    catalog: PackageCatalog,
+    packages: tuple[PackageEntry, ...],
+    manager: str,
+) -> tuple[list[ResultRow], dict[str, tuple[bool, str]]]:
+    """Build initial per-module status rows and a package-status cache."""
+    rows: list[ResultRow] = []
+    statuses: dict[str, tuple[bool, str]] = {}
+    seen_rows: set[tuple[str, str, str]] = set()
+    for entry in packages:
+        mapped_packages = entry.packages[manager]
+        modules = modules_for_entry(catalog, entry)
+        if not mapped_packages:
+            for module in modules:
+                row_key = (module, entry.identifier, "unavailable")
+                if row_key not in seen_rows:
+                    seen_rows.add(row_key)
+                    rows.append(
+                        ResultRow(
+                            module,
+                            entry.identifier,
+                            "unavailable",
+                            False,
+                            f"no {manager} package mapping for this dependency",
+                        )
+                    )
+            continue
+        for package in mapped_packages:
+            if package not in statuses:
+                statuses[package] = package_status(manager, package)
+            installed, issue = statuses[package]
+            for module in modules:
+                row_key = (module, entry.identifier, package)
+                if row_key in seen_rows:
+                    continue
+                seen_rows.add(row_key)
+                rows.append(
+                    ResultRow(
+                        module,
+                        entry.identifier,
+                        display_package_name(package),
+                        installed,
+                        issue,
+                    )
+                )
+    return rows, statuses
+
+
+def privileged_command(command: list[str], manager: str) -> tuple[list[str], str]:
+    """Prefix a Linux package command with sudo when required."""
+    if manager == "brew" or os.geteuid() == 0:
+        return command, ""
+    sudo = shutil.which("sudo")
+    if sudo is None:
+        return [], "root privileges are required and sudo is unavailable"
+    return [sudo, *command], ""
+
+
+def manager_install_command(manager: str, packages: list[str]) -> list[str]:
+    """Create one non-shell package installation command."""
+    executable = shutil.which(manager if manager != "apt" else "apt-get")
+    if executable is None:
+        return []
+    if manager == "apt":
+        return [executable, "install", "--yes", *packages]
+    if manager == "dnf":
+        return [executable, "install", "--assumeyes", *packages]
+    if manager == "pacman":
+        return [executable, "--sync", "--needed", "--noconfirm", *packages]
+    return [executable, "install", *packages]
+
+
+def compact_error(result: subprocess.CompletedProcess[str]) -> str:
+    """Return a compact final diagnostic from process output."""
+    output = result.stderr.strip() or result.stdout.strip()
+    if not output:
+        return f"command exited with status {result.returncode}"
+    return output.splitlines()[-1]
+
+
+def install_special_packages(packages: list[str], dry_run: bool) -> dict[str, str]:
+    """Install supported special dependencies and report non-managed ones."""
+    issues: dict[str, str] = {}
+    for package in packages:
+        if package == "@xcode-clt":
+            executable = shutil.which("xcode-select")
+            if executable is None:
+                issues[package] = "xcode-select is unavailable"
+            elif dry_run:
+                issues[package] = "would request Apple Command Line Tools installation"
+            else:
+                print("running:", executable, "--install")
+                result = run_process([executable, "--install"])
+                if result.returncode != 0:
+                    issues[package] = compact_error(result)
+                else:
+                    issues[package] = "complete the Apple installer prompt, then re-run"
+        else:
+            issues[package] = "external dependency is not installed automatically"
+    return issues
+
+
+def install_missing(
+    manager: str,
+    statuses: dict[str, tuple[bool, str]],
+    dry_run: bool,
+) -> dict[str, str]:
+    """Install missing package-managed dependencies and return failure details."""
+    missing = sorted(package for package, status in statuses.items() if not status[0])
+    normal_packages = [package for package in missing if not package.startswith("@")]
+    special_packages = [package for package in missing if package.startswith("@")]
+    issues = install_special_packages(special_packages, dry_run)
+    if not normal_packages:
+        return issues
+
+    install_command = manager_install_command(manager, normal_packages)
+    if not install_command:
+        issues.update(
+            {package: f"{manager} installation executable is unavailable" for package in normal_packages}
+        )
+        return issues
+    elevated_install, privilege_issue = privileged_command(install_command, manager)
+    if privilege_issue:
+        issues.update({package: privilege_issue for package in normal_packages})
+        return issues
+    if dry_run:
+        if manager == "apt":
+            apt_get = shutil.which("apt-get")
+            update_command, update_issue = (
+                privileged_command([apt_get, "update"], manager)
+                if apt_get
+                else ([], "apt-get is unavailable")
+            )
+            if not update_command:
+                issues.update({package: update_issue for package in normal_packages})
+                return issues
+            print("would run:", " ".join(update_command))
+        print("would run:", " ".join(elevated_install))
+        issues.update({package: "installation planned by dry-run" for package in normal_packages})
+        return issues
+
+    if manager == "apt":
+        apt_get = shutil.which("apt-get")
+        update_command, update_issue = privileged_command([apt_get, "update"], manager) if apt_get else ([], "")
+        if not update_command:
+            message = update_issue or "apt-get is unavailable"
+            issues.update({package: message for package in normal_packages})
+            return issues
+        print("running:", " ".join(update_command))
+        update_result = run_process(update_command)
+        if update_result.returncode != 0:
+            message = f"package index update failed: {compact_error(update_result)}"
+            issues.update({package: message for package in normal_packages})
+            return issues
+
+    print("running:", " ".join(elevated_install))
+    install_result = run_process(elevated_install)
+    if install_result.returncode != 0:
+        message = f"installation failed: {compact_error(install_result)}"
+        issues.update({package: message for package in normal_packages})
+    return issues
+
+
+def refresh_rows(
+    rows: list[ResultRow],
+    statuses: dict[str, tuple[bool, str]],
+    manager: str,
+    install_issues: dict[str, str],
+    dry_run: bool,
+) -> None:
+    """Refresh final status after installation and annotate every result row."""
+    display_to_source = {display_package_name(package): package for package in statuses}
+    for display_name, source_name in display_to_source.items():
+        was_installed = statuses[source_name][0]
+        installed, issue = package_status(manager, source_name)
+        for row in rows:
+            if row.package != display_name:
+                continue
+            row.installed = installed
+            if installed:
+                row.issue = "already installed" if was_installed else "installed now"
+            elif source_name in install_issues:
+                row.issue = install_issues[source_name]
+            elif dry_run:
+                row.issue = "installation planned by dry-run"
+            else:
+                row.issue = issue
+
+
+def file_sha256(path: pathlib.Path) -> str:
+    """Return the SHA-256 digest of one readable file."""
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while block := source.read(65536):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def active_boot_lines(config_text: str) -> tuple[str, ...]:
+    """Return uncommented Raspberry Pi boot configuration statements."""
+    lines: list[str] = []
+    for source_line in config_text.splitlines():
+        line = source_line.split("#", maxsplit=1)[0].strip()
+        if line:
+            lines.append(line)
+    return tuple(lines)
+
+
+def global_boot_lines(config_text: str) -> tuple[str, ...]:
+    """Return active statements in the global or explicit Raspberry Pi all section."""
+    lines: list[str] = []
+    current_section = "all"
+    for source_line in config_text.splitlines():
+        line = source_line.split("#", maxsplit=1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            current_section = line[1:-1].strip().lower()
+            continue
+        if current_section == "all":
+            lines.append(line)
+    return tuple(lines)
+
+
+def has_setting(lines: tuple[str, ...], setting: str, value: str) -> bool:
+    """Return whether one exact dtparam value is active."""
+    pattern = re.compile(rf"^dtparam={re.escape(setting)}={re.escape(value)}(?:\s|$)")
+    return any(pattern.search(line) is not None for line in lines)
+
+
+def has_overlay(lines: tuple[str, ...], overlay: str) -> bool:
+    """Return whether one Device Tree overlay is active."""
+    pattern = re.compile(rf"^dtoverlay={re.escape(overlay)}(?:,|\s|$)")
+    return any(pattern.search(line) is not None for line in lines)
+
+
+def robot_hat_v5_detected() -> bool:
+    """Return whether the supported Robot HAT v5 UUID is exposed by Device Tree."""
+    device_tree = pathlib.Path("/proc/device-tree")
+    if not device_tree.is_dir():
+        return False
+    for uuid_path in device_tree.glob("*hat*/uuid"):
+        if not uuid_path.is_file() or not os.access(uuid_path, os.R_OK):
+            continue
+        uuid = uuid_path.read_bytes().replace(b"\x00", b"").decode(
+            "ascii", errors="replace"
+        )
+        if uuid == ROBOT_HAT_V5_UUID:
+            return True
+    return False
+
+
+def locate_boot_configuration() -> tuple[pathlib.Path | None, pathlib.Path | None]:
+    """Locate the Raspberry Pi boot configuration and matching overlay directory."""
+    candidates = (
+        (pathlib.Path("/boot/firmware/config.txt"), pathlib.Path("/boot/firmware/overlays")),
+        (pathlib.Path("/boot/config.txt"), pathlib.Path("/boot/overlays")),
+    )
+    for config_path, overlay_directory in candidates:
+        if config_path.is_file() and overlay_directory.is_dir():
+            return config_path, overlay_directory
+    return None, None
+
+
+def boot_result(dependency: str, path: str, installed: bool, issue: str) -> ResultRow:
+    """Create one Raspberry Pi boot result row."""
+    return ResultRow("RaspberryPiBoot", dependency, path, installed, issue)
+
+
+def run_privileged_action(
+    command: list[str], manager: str, input_text: str | None = None
+) -> tuple[bool, str]:
+    """Run one reviewed privileged filesystem command."""
+    elevated_command, privilege_issue = privileged_command(command, manager)
+    if privilege_issue:
+        return False, privilege_issue
+    print("running:", " ".join(elevated_command))
+    result = run_process(elevated_command, input_text)
+    if result.returncode != 0:
+        return False, compact_error(result)
+    return True, ""
+
+
+def current_boot_rows(
+    config_path: pathlib.Path,
+    overlay_path: pathlib.Path,
+) -> list[ResultRow]:
+    """Inspect the installed v5 overlay and required boot configuration statements."""
+    config_text = config_path.read_text(encoding="utf-8")
+    lines = global_boot_lines(config_text)
+    overlay_ready = (
+        overlay_path.is_file()
+        and os.access(overlay_path, os.R_OK)
+        and file_sha256(overlay_path) == ROBOT_HAT_V5_SHA256
+    )
+    i2c_ready = has_setting(lines, "i2c_arm", "on")
+    spi_ready = has_setting(lines, "spi", "on")
+    selection_ready = has_overlay(lines, ROBOT_HAT_V5_OVERLAY)
+    return [
+        boot_result(
+            "overlay-file",
+            str(overlay_path),
+            overlay_ready,
+            "installed with expected checksum" if overlay_ready else "missing or checksum mismatch",
+        ),
+        boot_result(
+            "i2c-interface",
+            str(config_path),
+            i2c_ready,
+            "dtparam=i2c_arm=on" if i2c_ready else "dtparam=i2c_arm=on is missing",
+        ),
+        boot_result(
+            "spi-interface",
+            str(config_path),
+            spi_ready,
+            "dtparam=spi=on" if spi_ready else "dtparam=spi=on is missing",
+        ),
+        boot_result(
+            "overlay-selection",
+            str(config_path),
+            selection_ready,
+            (
+                f"dtoverlay={ROBOT_HAT_V5_OVERLAY}"
+                if selection_ready
+                else f"dtoverlay={ROBOT_HAT_V5_OVERLAY} is missing"
+            ),
+        ),
+    ]
+
+
+def apply_boot_configuration(
+    manager: str,
+    source_overlay: pathlib.Path,
+    config_path: pathlib.Path,
+    overlay_path: pathlib.Path,
+) -> tuple[bool, str]:
+    """Back up, install, and activate the verified Robot HAT v5 overlay."""
+    install_program = shutil.which("install")
+    copy_program = shutil.which("cp")
+    tee_program = shutil.which("tee")
+    if install_program is None or copy_program is None or tee_program is None:
+        return False, "install, cp, and tee commands are required for boot configuration"
+
+    config_backup = config_path.with_name(f"{config_path.name}.xwalk-backup")
+    if not config_backup.exists():
+        success, issue = run_privileged_action(
+            [copy_program, "--archive", "--", str(config_path), str(config_backup)], manager
+        )
+        if not success:
+            return False, f"configuration backup failed: {issue}"
+
+    if overlay_path.exists() and file_sha256(overlay_path) != ROBOT_HAT_V5_SHA256:
+        overlay_backup = overlay_path.with_name(f"{overlay_path.name}.xwalk-backup")
+        if not overlay_backup.exists():
+            success, issue = run_privileged_action(
+                [copy_program, "--archive", "--", str(overlay_path), str(overlay_backup)],
+                manager,
+            )
+            if not success:
+                return False, f"existing overlay backup failed: {issue}"
+
+    success, issue = run_privileged_action(
+        [install_program, "-m", "0644", str(source_overlay), str(overlay_path)], manager
+    )
+    if not success:
+        return False, f"overlay installation failed: {issue}"
+
+    config_text = config_path.read_text(encoding="utf-8")
+    lines = global_boot_lines(config_text)
+    additions: list[str] = []
+    if not has_setting(lines, "i2c_arm", "on"):
+        additions.append("dtparam=i2c_arm=on")
+    if not has_setting(lines, "spi", "on"):
+        additions.append("dtparam=spi=on")
+    if not has_overlay(lines, ROBOT_HAT_V5_OVERLAY):
+        additions.append(f"dtoverlay={ROBOT_HAT_V5_OVERLAY}")
+    if additions:
+        appended_text = (
+            "\n[all]\n# xWalk Robot HAT v5 configuration\n"
+            + "\n".join(additions)
+            + "\n"
+        )
+        success, issue = run_privileged_action(
+            [tee_program, "--append", str(config_path)], manager, appended_text
+        )
+        if not success:
+            return False, f"boot configuration update failed: {issue}"
+    return True, "overlay installed; reboot required before hardware validation"
+
+
+def configure_raspberry_pi_boot(
+    mode: str,
+    profile: str | None,
+    selected_platform: PlatformSelection,
+    repository_directory: pathlib.Path,
+) -> list[ResultRow]:
+    """Validate, plan, or apply the Raspberry Pi v5 boot configuration."""
+    if selected_platform.manager != "apt":
+        return [
+            boot_result(
+                "platform",
+                selected_platform.os_name,
+                False,
+                "boot provisioning supports Raspberry Pi OS or Ubuntu through APT",
+            )
+        ]
+    if profile is None:
+        return [
+            boot_result(
+                "hardware-profile",
+                "unavailable",
+                False,
+                "--profile robot_hat_v4 or robot_hat_v5 is required for --device rpi",
+            )
+        ]
+    if not is_raspberry_pi():
+        return [
+            boot_result(
+                "board-identity",
+                "unavailable",
+                False,
+                "the local Device Tree does not identify a Raspberry Pi",
+            )
+        ]
+    if profile == "robot_hat_v4":
+        return [
+            boot_result(
+                "overlay-file",
+                "unavailable",
+                False,
+                "no verified Robot HAT v4 overlay exists in "
+                "scripts/integration/shell-agent/env-tool/dtoverlays",
+            )
+        ]
+    if not robot_hat_v5_detected():
+        return [
+            boot_result(
+                "board-identity",
+                "unavailable",
+                False,
+                f"Robot HAT v5 UUID {ROBOT_HAT_V5_UUID} was not detected",
+            )
+        ]
+
+    source_overlay = (
+        repository_directory
+        / "xWalk-rpi5-tool"
+        / "shell-agent"
+        / "env-tool"
+        / "dtoverlays"
+        / f"{ROBOT_HAT_V5_OVERLAY}.dtbo"
+    )
+    if not source_overlay.is_file() or not os.access(source_overlay, os.R_OK):
+        return [boot_result("overlay-source", str(source_overlay), False, "source is unreadable")]
+    if file_sha256(source_overlay) != ROBOT_HAT_V5_SHA256:
+        return [
+            boot_result(
+                "overlay-source", str(source_overlay), False, "source checksum mismatch"
+            )
+        ]
+
+    config_path, overlay_directory = locate_boot_configuration()
+    if config_path is None or overlay_directory is None:
+        return [
+            boot_result(
+                "boot-layout",
+                "unavailable",
+                False,
+                "no supported config.txt and overlays directory pair was found",
+            )
+        ]
+    if not os.access(config_path, os.R_OK):
+        return [boot_result("boot-config", str(config_path), False, "configuration is unreadable")]
+
+    config_text = config_path.read_text(encoding="utf-8")
+    lines = active_boot_lines(config_text)
+    if has_setting(lines, "i2c_arm", "off") or has_setting(lines, "spi", "off"):
+        return [
+            boot_result(
+                "boot-conflict",
+                str(config_path),
+                False,
+                "resolve an active dtparam=i2c_arm=off or dtparam=spi=off first",
+            )
+        ]
+    if has_overlay(lines, "sunfounder-servohat+"):
+        return [
+            boot_result(
+                "overlay-conflict",
+                str(config_path),
+                False,
+                "the overlapping sunfounder-servohat+ overlay is active",
+            )
+        ]
+
+    overlay_path = overlay_directory / f"{ROBOT_HAT_V5_OVERLAY}.dtbo"
+    if mode == "check":
+        return current_boot_rows(config_path, overlay_path)
+    if mode == "dry-run":
+        rows = current_boot_rows(config_path, overlay_path)
+        for row in rows:
+            if not row.installed:
+                row.issue = "installation or configuration planned by dry-run"
+        return rows
+
+    success, issue = apply_boot_configuration(
+        selected_platform.manager, source_overlay, config_path, overlay_path
+    )
+    if not success:
+        return [boot_result("boot-configuration", str(config_path), False, issue)]
+    rows = current_boot_rows(config_path, overlay_path)
+    if all(row.installed for row in rows):
+        rows.append(boot_result("reboot", "required", True, issue))
+    return rows
+
+
+def print_table(rows: list[ResultRow]) -> None:
+    """Print the final per-module installation table and summary counts."""
+    headings = ("", "Module/submodule", "Dependency", "Package", "State / issue")
+    table_rows = [
+        (
+            "✓" if row.installed else "✗",
+            row.module,
+            row.dependency,
+            row.package,
+            row.issue,
+        )
+        for row in sorted(rows, key=lambda item: (item.module, item.dependency, item.package))
+    ]
+    widths = [len(heading) for heading in headings]
+    for table_row in table_rows:
+        for index, value in enumerate(table_row):
+            widths[index] = max(widths[index], len(value))
+
+    def separator() -> str:
+        return "+" + "+".join("-" * (width + 2) for width in widths) + "+"
+
+    def formatted(values: tuple[str, ...]) -> str:
+        cells = (f" {value:<{widths[index]}} " for index, value in enumerate(values))
+        return "|" + "|".join(cells) + "|"
+
+    print("\nDependency result table")
+    print(separator())
+    print(formatted(headings))
+    print(separator())
+    for table_row in table_rows:
+        print(formatted(table_row))
+    print(separator())
+    installed_count = sum(1 for row in rows if row.installed)
+    missing_count = len(rows) - installed_count
+    print(f"Installed rows: {installed_count}")
+    print(f"Missing or unsupported rows: {missing_count}")
+
+
+def create_parser(default_manifest: pathlib.Path) -> argparse.ArgumentParser:
+    """Create the command-line parser."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Check and install xWalk dependencies, then report status per module. "
+            "Installation is the default action."
+        )
+    )
+    parser.add_argument("--manifest", type=pathlib.Path, default=default_manifest)
+    parser.add_argument(
+        "--os",
+        default="auto",
+        help=(
+            "auto or an OS name such as ubuntu, raspbian, debian, fedora, rhel, "
+            "arch, manjaro, or macos"
+        ),
+    )
+    parser.add_argument(
+        "--device",
+        "--target",
+        dest="device",
+        choices=("auto", "host", "rpi"),
+        default="auto",
+        help="select host or Raspberry Pi behavior; --target is retained as an alias",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=("robot_hat_v4", "robot_hat_v5"),
+        help="physically verified Robot HAT profile; required for Raspberry Pi boot changes",
+    )
+    parser.add_argument(
+        "--camera", choices=("auto", "none", "csi", "usb"), default="auto"
+    )
+    parser.add_argument(
+        "--include",
+        action="append",
+        choices=SUPPORTED_SCOPES,
+        default=[],
+        help="include one optional dependency scope; may be repeated",
+    )
+    parser.add_argument(
+        "--required-only",
+        action="store_true",
+        help="install only required build/runtime packages; the default includes every scope",
+    )
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--check", action="store_true", help="report status without installing")
+    action.add_argument(
+        "--dry-run", action="store_true", help="show the installation command without running it"
+    )
+    action.add_argument(
+        "--install", action="store_true", help="install missing packages; this is the default"
+    )
+    return parser
+
+
+def main() -> int:
+    """Parse options, install selected packages, and print the final table."""
+    default_manifest = pathlib.Path(__file__).resolve().parents[2] / "apt-packages.txt"
+    parser = create_parser(default_manifest)
+    arguments = parser.parse_args()
+    catalog = parse_catalog(arguments.manifest.resolve())
+    selected_platform = select_platform(arguments.os)
+    device = resolve_target(arguments.device, selected_platform)
+    if device == "host" and arguments.profile is not None:
+        parser.error("--profile is valid only with --device rpi")
+    if device == "rpi":
+        if arguments.profile is None:
+            parser.error("--device rpi requires a physically verified --profile")
+        if selected_platform.manager != "apt":
+            parser.error("Raspberry Pi boot provisioning supports Raspberry Pi OS or Ubuntu")
+        if not is_raspberry_pi():
+            parser.error("--device rpi requires a locally detected Raspberry Pi")
+        if arguments.profile == "robot_hat_v4":
+            parser.error(
+                "no verified Robot HAT v4 overlay exists in "
+                "scripts/integration/shell-agent/env-tool/dtoverlays; "
+                "the Servo HAT+ overlay is not a Robot HAT v4 overlay"
+            )
+        if not robot_hat_v5_detected():
+            parser.error("robot_hat_v5 requires the supported locally detected HAT UUID")
+    scopes = selected_scopes(arguments, device)
+    packages = filter_packages(catalog, device, scopes)
+    if not packages:
+        print("No package records matched the selected target and scopes.", file=sys.stderr)
+        return 2
+
+    print(f"Operating system: {selected_platform.os_name}")
+    print(f"Package family: {selected_platform.family} ({selected_platform.manager})")
+    print(f"Device: {device}")
+    print(f"Scopes: {', '.join(sorted(scopes))}")
+    print(f"Manifest: {arguments.manifest.resolve()}")
+
+    rows, statuses = build_rows(catalog, packages, selected_platform.manager)
+    install_issues: dict[str, str] = {}
+    if not arguments.check:
+        install_issues = install_missing(
+            selected_platform.manager, statuses, arguments.dry_run
+        )
+        refresh_rows(
+            rows,
+            statuses,
+            selected_platform.manager,
+            install_issues,
+            arguments.dry_run,
+        )
+    if device == "rpi":
+        mode = "check" if arguments.check else "dry-run" if arguments.dry_run else "install"
+        repository_directory = pathlib.Path(__file__).resolve().parents[3]
+        rows.extend(
+            configure_raspberry_pi_boot(
+                mode,
+                arguments.profile,
+                selected_platform,
+                repository_directory,
+            )
+        )
+    print_table(rows)
+
+    missing = any(not row.installed for row in rows)
+    if arguments.dry_run:
+        unsupported = any(row.package == "unavailable" for row in rows)
+        return 1 if unsupported else 0
+    return 1 if missing else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

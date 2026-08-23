@@ -1,9 +1,0 @@
-[Unit]
-Description=Start xWalk Gerrit CI when Gerrit starts
-
-[Path]
-PathExists=@@GERRIT_SITE@@/logs/gerrit.pid
-Unit=xwalk-gerrit-ci-autostart.service
-
-[Install]
-WantedBy=default.target

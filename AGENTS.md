@@ -46,14 +46,14 @@ below `xWalkLibrary/x86_64` and `xWalkLibrary/aarch64`.
 Before completing any C++ change, format all project-owned C++ files with:
 
 ```bash
-xWalk-rpi5-tool/py-agent/dev-tool/styler-tool/xWalkStyler format
+scripts/integration/py-agent/dev-tool/styler-tool/xWalkStyler format
 ```
 
 Before submitting or merging a change, validate formatting without modifying
 the checkout:
 
 ```bash
-xWalk-rpi5-tool/py-agent/dev-tool/styler-tool/xWalkStyler check
+scripts/integration/py-agent/dev-tool/styler-tool/xWalkStyler check
 ```
 
 ## Header-owned type definitions

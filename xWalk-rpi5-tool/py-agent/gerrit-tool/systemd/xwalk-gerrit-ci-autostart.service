@@ -1,7 +1,0 @@
-[Unit]
-Description=Start xWalk Gerrit CI for a running Gerrit server
-
-[Service]
-Type=simple
-ExecStart=%h/bin/gerrit-ci-autostart
-TimeoutStopSec=120

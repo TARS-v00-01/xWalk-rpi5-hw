@@ -1,8 +1,0 @@
-#!/bin/sh
-set -eu
-# shellcheck source=/dev/null
-. "$HOME/gerrit-env.sh"
-"$HOME/bin/gerrit-site-check" >/dev/null
-[ -x "$GERRIT_SITE/bin/gerrit.sh" ] || { echo "Missing Gerrit control script" >&2; exit 2; }
-"$HOME/bin/gerrit-stop"
-exec "$HOME/bin/gerrit-start"

@@ -1,7 +1,0 @@
-eclipse.preferences.version=1
-indexerId=org.eclipse.cdt.core.fastIndexer
-indexer/indexAllFiles=true
-indexer/indexUnusedHeadersWithAlternateLang=false
-indexer/indexUnusedHeadersWithDefaultLang=true
-indexer/indexerId=org.eclipse.cdt.core.fastIndexer
-indexer/useHeuristicIncludeResolution=true

@@ -1,7 +1,0 @@
-{
-  "format_version": 1,
-  "model_identifier": "deterministic-detector-double",
-  "classes": ["person", "bicycle", "vehicle"],
-  "maximum_input_width": 320,
-  "maximum_input_height": 240
-}

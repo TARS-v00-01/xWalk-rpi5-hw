@@ -22,7 +22,7 @@ option(XWALK_AARCH64_DEPENDENCY_AUDIT
     "Audit required target dependencies before an AArch64 RPI configure" ON)
 
 set(XWALK_RPI_DEFAULTS_FILE
-    "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/rpi-defaults.conf")
+    "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/rpi-defaults.conf")
 function(xwalk_read_rpi_default default_name)
     file(STRINGS "${XWALK_RPI_DEFAULTS_FILE}" default_entry
         REGEX "^${default_name}=.+$")
@@ -181,11 +181,11 @@ set(XWALK_PICARX_CONFIG_FILE "${XWALK_RPI_RUNTIME_CONFIG_FILE}" CACHE FILEPATH
     "Writable PiCar-X runtime configuration compiled into the build-tree CLI")
 
 add_custom_target(host-dependency-check
-    COMMAND "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/quality-tool/check-host-quality-dependencies.sh"
+    COMMAND "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/quality-tool/check-host-quality-dependencies.sh"
     WORKING_DIRECTORY "${XWALK_WORKSPACE_ROOT}"
     COMMENT "Reporting host-quality tool availability")
 add_custom_target(host-shellcheck
-    COMMAND "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/quality-tool/run-host-shellcheck.sh"
+    COMMAND "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/quality-tool/run-host-shellcheck.sh"
     WORKING_DIRECTORY "${XWALK_WORKSPACE_ROOT}"
     COMMENT "Checking every repository-owned shell script")
 
@@ -194,7 +194,7 @@ if(XWALK_BUILD_RPI AND CMAKE_CROSSCOMPILING AND
     XWALK_AARCH64_DEPENDENCY_AUDIT)
     execute_process(
         COMMAND bash
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/aarch64-dependency-audit.sh"
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/aarch64-dependency-audit.sh"
             "${XWALK_AARCH64_SYSROOT}"
         RESULT_VARIABLE XWALK_AARCH64_AUDIT_RESULT
         OUTPUT_VARIABLE XWALK_AARCH64_AUDIT_OUTPUT
@@ -203,7 +203,7 @@ if(XWALK_BUILD_RPI AND CMAKE_CROSSCOMPILING AND
         message(FATAL_ERROR
             "ARM64 target dependency audit failed.\n"
             "${XWALK_AARCH64_AUDIT_OUTPUT}${XWALK_AARCH64_AUDIT_ERROR}\n"
-            "Review xWalk-rpi5-tool/shell-agent/deploy-tool/ARM64_CROSS_BUILD.md. Do not disable "
+            "Review scripts/integration/shell-agent/deploy-tool/ARM64_CROSS_BUILD.md. Do not disable "
             "the audit for a deployable build.")
     endif()
     message(STATUS "${XWALK_AARCH64_AUDIT_OUTPUT}")
@@ -247,7 +247,7 @@ endif()
 if(XWALK_BUILD_RPI)
     execute_process(
         COMMAND
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/generate-rpi-runtime.sh"
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/generate-rpi-runtime.sh"
             --build-directory "${CMAKE_BINARY_DIR}/.."
             --runtime-user "${XWALK_RPI_RUNTIME_USER}"
             --local-prefix "${XWALK_RPI_LOCAL_PREFIX}"
@@ -517,7 +517,7 @@ endif()
 
 if(XWALK_BUILD_RPI)
     set(XWALK_RPI_SETUP_COMMAND
-        "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/setup-rpi.sh"
+        "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/setup-rpi.sh"
         --profile "${XWALK_RPI_PROFILE}"
         --runtime-user "${XWALK_RPI_RUNTIME_USER}"
         --gpio-device "${XWALK_RPI_GPIO_DEVICE}"
@@ -546,7 +546,7 @@ if(XWALK_BUILD_RPI)
             COMMAND "${CMAKE_COMMAND}" -E echo
                 "Provisioning ${XWALK_RPI_PROFILE} with selected GPIO device ${XWALK_RPI_GPIO_DEVICE}"
             COMMAND
-                "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/setup-rpi-local.sh"
+                "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/setup-rpi-local.sh"
                 --runtime-user "${XWALK_RPI_RUNTIME_USER}"
                 --local-prefix "${XWALK_RPI_LOCAL_PREFIX}"
                 --profile "${XWALK_RPI_PROFILE}"
@@ -572,7 +572,7 @@ if(XWALK_BUILD_RPI)
     endif()
 endif()
 if(XWALK_BUILD_FUZZERS)
-    add_subdirectory("${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/cpp-tool/fuzz" xWalk-rpi5-tool/cpp-tool/fuzz)
+    add_subdirectory("${XWALK_WORKSPACE_ROOT}/scripts/integration/cpp-tool/fuzz" scripts/integration/cpp-tool/fuzz)
 endif()
 
 add_library(xWalkHal INTERFACE)
@@ -634,78 +634,86 @@ if(BUILD_TESTING)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     add_test(NAME xWalkProvisioningHostTest
         COMMAND bash
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/test/setup-rpi-test.sh")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/test/setup-rpi-test.sh")
     set_tests_properties(xWalkProvisioningHostTest PROPERTIES LABELS "host;deployment")
     add_test(NAME xWalkRpiProvisionCMakeHostTest
         COMMAND bash
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/test/rpi-provision-cmake-test.sh")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/test/rpi-provision-cmake-test.sh")
     set_tests_properties(xWalkRpiProvisionCMakeHostTest PROPERTIES
         LABELS "host;deployment;cmake")
     add_test(NAME xWalkLanguageModelConfigHostTest
         COMMAND bash
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/test/language-model-config-test.sh")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/test/language-model-config-test.sh")
     set_tests_properties(xWalkLanguageModelConfigHostTest PROPERTIES
         LABELS "host;deployment")
     add_test(NAME xWalkEnvironmentLoaderHostTest
         COMMAND bash
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/test/environment-loader-test.sh")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/test/environment-loader-test.sh")
     set_tests_properties(xWalkEnvironmentLoaderHostTest PROPERTIES
         LABELS "host;deployment")
     add_test(NAME xWalkLicenseToolHostTest
         COMMAND "${Python3_EXECUTABLE}"
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/dev-tool/test/test_xWalkLicenseTool.py")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/py-agent/dev-tool/test/test_xWalkLicenseTool.py")
     set_tests_properties(xWalkLicenseToolHostTest PROPERTIES
         LABELS "host;deployment;security")
     add_test(NAME xWalkCodeHealthHostTest
         COMMAND "${Python3_EXECUTABLE}"
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/dev-tool/test/test_xWalkCodeHealth.py")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/py-agent/dev-tool/test/test_xWalkCodeHealth.py")
     set_tests_properties(xWalkCodeHealthHostTest PROPERTIES
         LABELS "host;tooling;network-free;quality")
     add_test(NAME xWalkConditionCheckHostTest
         COMMAND "${Python3_EXECUTABLE}"
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/dev-tool/xWalkConditionCheck"
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/py-agent/dev-tool/xWalkConditionCheck"
             "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-hw")
     set_tests_properties(xWalkConditionCheckHostTest PROPERTIES
         LABELS "host;tooling;network-free;quality")
     add_test(NAME xWalkConditionCheckUnitHostTest
         COMMAND "${Python3_EXECUTABLE}"
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/dev-tool/test/test_xWalkConditionCheck.py")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/py-agent/dev-tool/test/test_xWalkConditionCheck.py")
     set_tests_properties(xWalkConditionCheckUnitHostTest PROPERTIES
         LABELS "host;tooling;network-free;quality")
     add_test(NAME xWalkStylerHostTest
         COMMAND "${Python3_EXECUTABLE}"
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/dev-tool/styler-tool/tests/test_xWalkStyler.py")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/py-agent/dev-tool/styler-tool/tests/test_xWalkStyler.py")
     set_tests_properties(xWalkStylerHostTest PROPERTIES
         LABELS "host;tooling;network-free;quality")
-    add_test(NAME xWalkJiraImportHostTest
+    set(XWALK_BOARD_TOOL_ROOT
+        "${XWALK_WORKSPACE_ROOT}/scripts/integration/py-agent/board-tool")
+    if(IS_DIRECTORY "${XWALK_BOARD_TOOL_ROOT}")
+        add_test(NAME xWalkJiraImportHostTest
         COMMAND "${Python3_EXECUTABLE}" -m unittest discover
             -s test -p "test_xWalkJiraImport*.py")
-    set_tests_properties(xWalkJiraImportHostTest PROPERTIES
-        LABELS "host;tooling;network-free"
-        ENVIRONMENT "PYTHONPATH=${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/board-tool/py-src"
-        WORKING_DIRECTORY "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/board-tool")
-    add_test(NAME xWalkGerritHostTest
-        COMMAND "${Python3_EXECUTABLE}" -m unittest discover
-            -s py-test -p "xWalkGerrit*Test.py")
-    set_tests_properties(xWalkGerritHostTest PROPERTIES
-        LABELS "host;tooling;network-free"
-        WORKING_DIRECTORY "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/gerrit-tool")
-    find_program(XWALK_NODE_EXECUTABLE node)
-    if(XWALK_NODE_EXECUTABLE)
-        add_test(NAME xWalkGerritUiHostTest
-            COMMAND "${XWALK_NODE_EXECUTABLE}" --test py-test/xWalkReviewControlsTest.js)
-        set_tests_properties(xWalkGerritUiHostTest PROPERTIES
+        set_tests_properties(xWalkJiraImportHostTest PROPERTIES
             LABELS "host;tooling;network-free"
-            WORKING_DIRECTORY "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/py-agent/gerrit-tool")
+            ENVIRONMENT "PYTHONPATH=${XWALK_BOARD_TOOL_ROOT}/py-src"
+            WORKING_DIRECTORY "${XWALK_BOARD_TOOL_ROOT}")
+    endif()
+    set(XWALK_GERRIT_TOOL_ROOT
+        "${XWALK_WORKSPACE_ROOT}/scripts/integration/py-agent/gerrit-tool")
+    if(IS_DIRECTORY "${XWALK_GERRIT_TOOL_ROOT}")
+        add_test(NAME xWalkGerritHostTest
+            COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+                -s py-test -p "xWalkGerrit*Test.py")
+        set_tests_properties(xWalkGerritHostTest PROPERTIES
+            LABELS "host;tooling;network-free"
+            WORKING_DIRECTORY "${XWALK_GERRIT_TOOL_ROOT}")
+        find_program(XWALK_NODE_EXECUTABLE node)
+        if(XWALK_NODE_EXECUTABLE)
+            add_test(NAME xWalkGerritUiHostTest
+                COMMAND "${XWALK_NODE_EXECUTABLE}" --test py-test/xWalkReviewControlsTest.js)
+            set_tests_properties(xWalkGerritUiHostTest PROPERTIES
+                LABELS "host;tooling;network-free"
+                WORKING_DIRECTORY "${XWALK_GERRIT_TOOL_ROOT}")
+        endif()
     endif()
     add_test(NAME xHal_Rpi5CarDependencyInstallerHostTest
         COMMAND "${Python3_EXECUTABLE}"
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/test/dependency-installer-test.py")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/test/dependency-installer-test.py")
     set_tests_properties(xHal_Rpi5CarDependencyInstallerHostTest PROPERTIES
         LABELS "host;deployment")
     add_test(NAME xWalkAarch64DependencyAuditHostTest
         COMMAND bash
-            "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/test/aarch64-dependency-audit-test.sh")
+            "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/test/aarch64-dependency-audit-test.sh")
     set_tests_properties(xWalkAarch64DependencyAuditHostTest PROPERTIES
         LABELS "host;deployment;dependency")
     add_test(NAME xWalkLibraryX86ArchitectureHostTest
@@ -735,7 +743,7 @@ endif()
 find_program(XWALK_CPPCHECK_EXECUTABLE cppcheck)
 if(XWALK_CPPCHECK_EXECUTABLE AND CMAKE_EXPORT_COMPILE_COMMANDS)
     set(XWALK_CPPCHECK_SUPPRESSIONS
-        "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/env-tool/quality/.cppcheck-suppressions")
+        "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/env-tool/quality/.cppcheck-suppressions")
     add_custom_target(cppcheck
         COMMAND "${XWALK_CPPCHECK_EXECUTABLE}"
             "--project=${CMAKE_BINARY_DIR}/compile_commands.json"
@@ -787,6 +795,6 @@ if(XWALK_ENABLE_PACKAGING)
         "espeak-ng, i2c-tools, gpiod, python3, python3-nacl")
     set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "rpicam-apps | ffmpeg")
     set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-        "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/debian/conffiles")
+        "${XWALK_WORKSPACE_ROOT}/scripts/integration/shell-agent/deploy-tool/debian/conffiles")
     include(CPack)
 endif()
