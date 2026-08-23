@@ -2,7 +2,8 @@
 
 set -Eeuo pipefail
 
-repository_root="$(git rev-parse --show-toplevel)"
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
+repository_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 service_path="xWalk-rpi5-tool/py-agent/gerrit-tool/py-src/xWalkGerritCi.py"
 helper_path="xWalk-rpi5-tool/py-agent/gerrit-tool/shell-script/gerrit-github-sync.sh"
 validator_path="xWalk-rpi5-tool/shell-agent/gerrit-tool/validate-publication-policy.sh"
@@ -30,12 +31,19 @@ then
     exit 1
 fi
 
-git -C "$repository_root" grep -q -E \
-    '["'\''"]git["'\''"][[:space:]]*,[[:space:]]*["'\''"]push["'\''"][[:space:]]*,[[:space:]]*["'\''"]github["'\''"]' \
-    -- "$service_path"
-# shellcheck disable=SC2016  # Match the helper's literal $work variable.
-git -C "$repository_root" grep -q -E \
-    'git[[:space:]]+-C[[:space:]]+"\$work"[[:space:]]+push[[:space:]]+github' \
-    -- "$helper_path"
+if [[ -e "$repository_root/$service_path" || -e "$repository_root/$helper_path" ]]
+then
+    [[ -e "$repository_root/$service_path" && -e "$repository_root/$helper_path" ]] || {
+        echo "Guarded GitHub synchronization service and helper must be present together" >&2
+        exit 1
+    }
+    git -C "$repository_root" grep -q -E \
+        '["'\''"]git["'\''"][[:space:]]*,[[:space:]]*["'\''"]push["'\''"][[:space:]]*,[[:space:]]*["'\''"]github["'\''"]' \
+        -- "$service_path"
+    # shellcheck disable=SC2016  # Match the helper's literal $work variable.
+    git -C "$repository_root" grep -q -E \
+        'git[[:space:]]+-C[[:space:]]+"\$work"[[:space:]]+push[[:space:]]+github' \
+        -- "$helper_path"
+fi
 
 printf 'Validated Gerrit-only source publication and guarded GitHub uplift paths\n'

@@ -39,7 +39,7 @@ apply_component()
     product_path="$(xwalk_integration_path "$component")"
     url="${GERRIT_BASE_URL%/}/$component"
     clone_url="ssh://$GERRIT_ADMIN_USERNAME@$GERRIT_SERVER_HOST:$GERRIT_SSH_PORT/$component"
-    git -C "$output" rm -r --quiet -- "$product_path"
+    git -C "$output" rm -r --force --quiet -- "$product_path"
     git -C "$output" submodule add --force --name "$component" -b master "$clone_url" "$product_path"
     git -C "$output" config -f .gitmodules "submodule.$component.url" "$url"
     commit="$(git -C "$output/$product_path" rev-parse HEAD)"
@@ -60,7 +60,7 @@ apply_component()
 
 main()
 {
-    local component product_path file integration_remote
+    local component product_path file integration_remote stale_submodule
     for component in "${xwalk_components[@]}"; do
         product_path="$(xwalk_integration_path "$component")"
         [[ -d "$source_root/$product_path" ]] || {
@@ -84,12 +84,15 @@ main()
     trap 'rm -rf -- "$output"' ERR INT TERM
     mkdir -p "$output/scripts"
     git -C "$output" mv xWalk-rpi5-tool scripts/integration
-    git -C "$output" rm -r --quiet -- scripts/integration/gerrit \
-        scripts/integration/board
+    git -C "$output" rm -r --force --quiet -- scripts/integration/py-agent/gerrit-tool \
+        scripts/integration/py-agent/board-tool
+    for stale_submodule in xWalk-rpi5-tool xWalk-rpi5-hw xWalk-rpi5-iw devloper-note; do
+        git -C "$output" config -f .gitmodules --remove-section "submodule.$stale_submodule"
+    done
     git -C "$output" rm --quiet -- .github/workflows/host-quality.yml
     while IFS= read -r -d '' file; do
         sed -i 's#xWalk-rpi5-tool/#scripts/integration/#g' "$output/$file"
-    done < <(git -C "$output" grep -Il -z 'xWalk-rpi5-tool/' -- ':!scripts/integration/gerrit/**' || true)
+    done < <(git -C "$output" grep -Il -z 'xWalk-rpi5-tool/' || true)
     git -C "$output" add --all
     xwalk_log "relocate-integration-tools" "migration" "xWalk-rpi5-hw" "scripts/integration" \
         "xWalk-rpi5-tool" "controlled-top-level-CI-helpers" "Relocated integration support" \
@@ -101,6 +104,7 @@ main()
     # shellcheck disable=SC2016 # Git expands $name within each submodule process.
     git -C "$output" submodule foreach --quiet \
         'if git remote -v | grep -qi github; then echo "Forbidden GitHub remote in $name" >&2; exit 1; fi'
+    "$output/scripts/integration/shell-agent/gerrit-tool/validate-integration-metadata.sh"
     git -C "$output" -c user.name=xWalk-Automation -c user.email=automation.invalid \
         commit -s -m "Create xWalk-rpi5-hw integration repository"
     integration_remote="${GERRIT_BASE_URL%/}/xWalk-rpi5-hw"

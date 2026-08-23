@@ -1205,6 +1205,30 @@ class XWalkGerritCiTest(unittest.TestCase):
         self.assertIn('commit -s -F "$message"', script)
         self.assertNotIn('-m "Uplift $module to $source_commit"', script)
 
+    def test_submodule_migration_excludes_administration_tools(self) -> None:
+        """Remove the actual administration-only paths after relocating tools."""
+
+        script = (
+            pathlib.Path(__file__).parents[1] / "shell-script/gerrit-submodule-migrate.sh"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(script.count("rm -r --force --quiet"), 2)
+        self.assertIn(
+            'config -f .gitmodules --remove-section "submodule.$stale_submodule"',
+            script,
+        )
+        self.assertIn("scripts/integration/py-agent/gerrit-tool", script)
+        self.assertIn("scripts/integration/py-agent/board-tool", script)
+        self.assertIn("validate-integration-metadata.sh", script)
+        self.assertNotIn("scripts/integration/gerrit", script)
+        self.assertNotIn("scripts/integration/board", script)
+
+        validator = (
+            pathlib.Path(__file__).parents[3]
+            / "shell-agent/gerrit-tool/validate-publication-policy.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('git -C "$script_dir" rev-parse --show-toplevel', validator)
+        self.assertIn("must be present together", validator)
+
 
 class XWalkGerritQualityTest(unittest.TestCase):
     """Verify the structured, resource-safe Gerrit module graph."""

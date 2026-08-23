@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-root="$(git rev-parse --show-toplevel)"
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
+root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 "$root/xWalk-rpi5-tool/shell-agent/gerrit-tool/validate-publication-policy.sh"
 components=(
     xWalkAgent xWalkAudioResources xWalkController xWalkHal xWalk-rpi5-iw xWalkLibrary
@@ -112,8 +113,7 @@ validate_gitlink_superproject()
     local component expected_path expected_url path url branch mode
     local -A expected=()
     for component in "${components[@]}"; do
-        expected_path="$component"
-        [[ "$component" != DevloperNote ]] || expected_path="devloper-note"
+        expected_path="$(integrated_path "$component")"
         expected_url="$component"
         expected["$expected_path"]=1
         path="$(git -C "$root" config -f .gitmodules --get "submodule.$component.path")"
