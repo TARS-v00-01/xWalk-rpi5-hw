@@ -4,6 +4,9 @@ set -eu
 
 script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
 repository_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
+if [ -d "$repository_root/py-agent" ] && [ -d "$repository_root/shell-agent" ]; then
+    repository_root="$(dirname -- "$repository_root")"
+fi
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT
 
