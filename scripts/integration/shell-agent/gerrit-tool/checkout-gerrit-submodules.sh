@@ -35,14 +35,15 @@ printf -v ssh_command '%q ' ssh -i "$GERRIT_SUBMODULE_SSH_KEY_FILE" -o BatchMode
     -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
     -o "UserKnownHostsFile=$GERRIT_SSH_KNOWN_HOSTS_FILE" \
     -p "$GERRIT_SSH_PORT"
+export GIT_SSH_COMMAND="$ssh_command"
 git -C "$root" config --local core.sshCommand "$ssh_command"
+git -C "$root" submodule sync --recursive
 while read -r key _path; do
     name="${key#submodule.}"
     name="${name%.path}"
     git -C "$root" config --local "submodule.$name.url" \
         "ssh://$GERRIT_SUBMODULE_USERNAME@$GERRIT_SERVER_HOST:$GERRIT_SSH_PORT/$name"
 done < <(git -C "$root" config -f .gitmodules --get-regexp '^submodule\..*\.path$')
-git -C "$root" submodule sync --recursive
 git -C "$root" submodule update --init --recursive
 git -C "$root" submodule foreach --recursive 'git rev-parse --verify HEAD >/dev/null'
 echo "Checked out exact private Gerrit submodule commits"

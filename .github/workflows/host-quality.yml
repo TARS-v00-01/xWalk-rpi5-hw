@@ -1,0 +1,304 @@
+name: xWalk Host Quality
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: xwalk-host-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  XWALK_HOST_PACKAGES: >-
+    ansible-core clang clang-format clang-tools cmake cppcheck gcovr jq libasound2-dev
+    libboost-dev libclang-rt-18-dev libcurl4-openssl-dev libgmock-dev libgrpc++-dev
+    libgtest-dev libjson-c-dev libopencv-dev libprotobuf-dev libsndfile1-dev libtinyxml2-dev
+    libyaml-cpp-dev llvm ninja-build nodejs protobuf-compiler
+    protobuf-compiler-grpc python3-nacl python3-yaml shellcheck valgrind
+
+jobs:
+  preparation:
+    name: xWalk Preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Install xWalk host validation dependencies
+        run: scripts/integration/shell-agent/quality-tool/install-github-host-packages.sh $XWALK_HOST_PACKAGES
+      - name: Validate shell scripts and CI metadata
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh preparation
+      - name: Validate C++ formatting
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh styler
+
+  xwalk-agent:
+    name: xWalkAgent
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Configure and build xWalkAgent
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-agent-build
+      - name: Run xWalkAgent aggregate tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-agent-aggregate
+      - name: Run xWalkAgent functional-group tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-agent-groups
+      - name: Run xWalkAgent configuration and communication tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-agent-functional
+
+  xwalk-controller:
+    name: xWalkController
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Configure and build xWalkController
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-controller-build
+      - name: Run controller, CLI, and Controller-to-HAL tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-controller-tests
+      - name: Run device-free deployment configuration diagnosis
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-controller-diagnostic
+
+  xwalk-hal:
+    name: xWalkHal
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Configure and build xWalkHal
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-hal-build
+      - name: Run HAL unit and host-safe sequence tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-hal-unit
+      - name: Run HAL interface, device, sensor, and layer tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-hal-groups
+      - name: Run Robot HAT and lifecycle simulations
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-hal-simulation
+      - name: Run the device-free Robot HAT soak test
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-hal-soak
+
+  xwalk-iw:
+    name: xWalk-rpi5-iw
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Configure and build xWalk-rpi5-iw
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-iw-build
+      - name: Run schema, serialization, gRPC, signal, and transport tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-iw-tests
+
+  xwalk-library:
+    name: xWalkLibrary
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Configure and build xWalkLibrary consumers
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-library-build
+      - name: Run shared-library, configuration, utility, licence, and architecture tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-library-tests
+
+  xwalk-trace:
+    name: xWalkTrace
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Build and run Trace formatting, routing, macro, and selector tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-trace-tests
+
+  xwalk-vision:
+    name: xWalk Vision
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Configure and build recorded vision scenarios
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-vision-build
+      - name: Validate recorded media, OpenCV scenarios, safety, and assets
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-vision-tests
+
+  xwalk-streaming:
+    name: xWalk Streaming
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Configure and build xWalk Streaming
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-streaming-build
+      - name: Run loopback HTTP, MJPEG, lifecycle, timeout, and backpressure tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh xwalk-streaming-tests
+
+  xwalk-quality:
+    name: xWalk Quality
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Run GCC Debug build and tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh build-and-test gcc Debug
+      - name: Run GCC Release build and tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh build-and-test gcc Release
+      - name: Run Clang Debug build and tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh build-and-test clang Debug
+      - name: Run Clang Release build and tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh build-and-test clang Release
+      - name: Run AddressSanitizer and UndefinedBehaviorSanitizer
+        run: timeout --signal=TERM 20m scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh asan-ubsan
+      - name: Run LeakSanitizer
+        run: timeout --signal=TERM 20m scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh leak-sanitizer
+      - name: Run ThreadSanitizer
+        run: timeout --signal=TERM 10m scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh thread-sanitizer
+      - name: Run Clang-Tidy and Cppcheck
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh static-analysis
+      - name: Run Clang Static Analyzer
+        run: timeout --signal=TERM 30m scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh clang-static-analyzer
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: clang-static-analyzer-report
+          path: build-host/clang-analyzer/reports
+          if-no-files-found: ignore
+      - name: Run host stress tests
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh stress-tests
+      - name: Run bounded fuzz smoke tests
+        run: timeout --signal=TERM 10m scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh fuzz-smoke
+      - name: Run Valgrind analysis
+        run: timeout --signal=TERM 30m scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh valgrind
+      - name: Generate GCC and Clang coverage
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh coverage
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: xwalk-coverage-reports
+          path: |
+            build-host/coverage/coverage.html
+            build-host/coverage/coverage.*.html
+            build-host/coverage/coverage.xml
+            build-host/coverage/coverage.json
+            build-host/coverage-clang/coverage-summary.txt
+            build-host/coverage-clang/coverage.json
+            build-host/coverage-clang/html
+          if-no-files-found: ignore
+
+  xwalk-deployment:
+    name: xWalk Deployment
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Validate deployment and provisioning scripts
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh deployment-scripts
+      - name: Validate ARM64 dependencies and configured cross-build
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh arm64
+      - name: Build and validate the staged installation
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh staged-install
+      - uses: actions/upload-artifact@v6
+        with:
+          name: staged-install-checksums
+          path: build-host/deploy.sha256
+
+  developer-note:
+    name: Developer Documentation
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Build and verify the searchable developer-note wiki
+        run: scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh developer-note-wiki
+      - uses: actions/upload-artifact@v6
+        with:
+          name: xwalk-developer-note-wiki
+          path: build-devloper-note-wiki/github-site
+
+  codescene-code-health:
+    name: MyPiCarX / Code Health
+    needs: preparation
+    runs-on: [self-hosted, linux, x64, xwalk-ci]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check out exact Gerrit component commits
+        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+      - name: Validate MyPiCarX CodeScene component configuration
+        run: scripts/integration/py-agent/dev-tool/xWalkCodeHealth validate-config
+      - name: Analyse changed code with the licensed CodeScene CLI when available
+        env:
+          GITHUB_BASE_SHA: ${{ github.event.before || github.sha }}
+          GITHUB_HEAD_SHA: ${{ github.sha }}
+          XWALK_CODESCENE_BASE_REVISION: ${{ github.event.before || github.sha }}
+          XWALK_CODESCENE_REVISION: ${{ github.sha }}
+          XWALK_CODESCENE_STRICT: ${{ vars.XWALK_CODESCENE_STRICT || 'false' }}
+        run: scripts/integration/py-agent/dev-tool/xWalkCodeHealth analyze
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: mypicarx-code-health-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build-host/codescene
+          if-no-files-found: warn
+
+  host-quality-gate:
+    name: xWalk Host Quality Gate
+    runs-on: ubuntu-24.04
+    if: always()
+    needs:
+      - xwalk-agent
+      - xwalk-controller
+      - xwalk-hal
+      - xwalk-iw
+      - xwalk-library
+      - xwalk-trace
+      - xwalk-vision
+      - xwalk-streaming
+      - xwalk-quality
+      - xwalk-deployment
+      - developer-note
+      - codescene-code-health
+    steps:
+      - name: Verify all xWalk module results
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          printf '%s\n' "$JOB_RESULTS" | jq .
+
+          if ! printf '%s\n' "$JOB_RESULTS" |
+              jq --exit-status 'all(.[]; .result == "success")' >/dev/null; then
+              echo "::error::One or more xWalk module jobs did not succeed."
+              exit 1
+          fi
+
+          echo "All xWalk module jobs completed successfully."
