@@ -472,7 +472,7 @@ def validate_client_address(schema_text: str) -> None:
     message_body = match.group(1)
     required_fields = (
         ("uint32 mail_box_id", 1),
-        ("string client_address", 2),
+        ("string clientAddress", 2),
         ("uint32 xwalk_local_index", 3),
         ("uint32 module_type", 4),
     )
@@ -498,7 +498,7 @@ def validate_message_client_addresses(
         ValueError: If a message lacks the shared client-address field.
     """
     required_field = (
-        f"{CLIENT_ADDRESS_MESSAGE_NAME} client_address = "
+        f"{CLIENT_ADDRESS_MESSAGE_NAME} clientAddress = "
         f"{CLIENT_ADDRESS_FIELD_TAG};"
     )
     for message_name in message_names:
