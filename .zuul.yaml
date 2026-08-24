@@ -9,8 +9,8 @@
     name: xwalk-shellcheck
     description: xWalk repository-owned shell script analysis.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 300
     vars:
       xwalk_ci_job: shellcheck
@@ -19,7 +19,7 @@
     name: xwalk-styler
     description: xWalk C++ formatting, indentation, and 120-character line validation.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
     vars:
       xwalk_ci_job: styler
 
@@ -27,8 +27,8 @@
     name: xwalk-deployment-scripts
     description: xWalk deployment script tests and provisioning validation.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     vars:
       xwalk_ci_job: deployment-scripts
 
@@ -36,8 +36,8 @@
     name: xwalk-build-gcc-debug
     description: xWalk GCC Debug host build, tests, and device-free diagnostic.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies:
       - xwalk-shellcheck
       - xwalk-deployment-scripts
@@ -49,8 +49,8 @@
     name: xwalk-build-gcc-release
     description: xWalk GCC Release host build, tests, and device-free diagnostic.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies:
       - xwalk-shellcheck
       - xwalk-deployment-scripts
@@ -62,8 +62,8 @@
     name: xwalk-build-clang-debug
     description: xWalk Clang Debug host build, tests, and device-free diagnostic.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies:
       - xwalk-shellcheck
       - xwalk-deployment-scripts
@@ -75,8 +75,8 @@
     name: xwalk-build-clang-release
     description: xWalk Clang Release host build, tests, and device-free diagnostic.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies:
       - xwalk-shellcheck
       - xwalk-deployment-scripts
@@ -88,8 +88,8 @@
     name: xwalk-asan-ubsan
     description: xWalk AddressSanitizer and UndefinedBehaviorSanitizer verification.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 1200
     dependencies: &xwalk-build-dependencies
       - xwalk-build-gcc-debug
@@ -103,8 +103,8 @@
     name: xwalk-leak-sanitizer
     description: xWalk LeakSanitizer runtime verification.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 1200
     dependencies: *xwalk-build-dependencies
     vars:
@@ -114,8 +114,8 @@
     name: xwalk-thread-sanitizer
     description: xWalk ThreadSanitizer concurrency verification.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 600
     dependencies: *xwalk-build-dependencies
     vars:
@@ -125,8 +125,8 @@
     name: xwalk-host-stress
     description: xWalk repeated host stress tests.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: stress-tests
@@ -135,8 +135,8 @@
     name: xwalk-recorded-scenarios
     description: xWalk recorded vision scenario validation.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: recorded-scenarios
@@ -145,8 +145,8 @@
     name: xwalk-video-streaming
     description: xWalk loopback video streaming and backpressure tests.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: streaming
@@ -155,8 +155,8 @@
     name: xwalk-fuzz-smoke
     description: xWalk bounded host fuzz smoke tests.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 600
     dependencies: *xwalk-build-dependencies
     vars:
@@ -166,8 +166,8 @@
     name: xwalk-robot-hat-soak
     description: xWalk device-free Robot HAT soak simulation.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: soak-smoke
@@ -178,8 +178,8 @@
     name: xwalk-static-analysis
     description: xWalk Clang-Tidy and Cppcheck analysis.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: static-analysis
@@ -188,8 +188,8 @@
     name: xwalk-code-coverage
     description: xWalk GCC and Clang code coverage validation and reports.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: coverage
@@ -201,8 +201,8 @@
     name: xwalk-valgrind
     description: xWalk Valgrind memory and descriptor analysis.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 1800
     dependencies: *xwalk-build-dependencies
     vars:
@@ -214,8 +214,8 @@
     name: xwalk-clang-static-analyzer
     description: xWalk Clang Static Analyzer verification and reports.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 1800
     dependencies: *xwalk-build-dependencies
     vars:
@@ -227,8 +227,8 @@
     name: xwalk-staged-install
     description: xWalk staged installation and device-free deployment diagnostic.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: staged-install
@@ -239,7 +239,7 @@
     name: xwalk-arm64-validation
     description: xWalk ARM64 dependency audit and configured cross-build validation.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
     dependencies: *xwalk-build-dependencies
     vars:
       xwalk_ci_job: arm64
@@ -248,8 +248,8 @@
     name: xwalk-code-health
     description: MyPiCarX changed-code CodeScene delta analysis and rollout policy.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     timeout: 1200
     dependencies:
       - xwalk-shellcheck
@@ -263,8 +263,8 @@
     name: xwalk-host-quality-gate
     description: xWalk final Host Quality dependency verification.
     nodeset: xwalk-ubuntu-24.04
-    run: scripts/integration/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
-    post-run: scripts/integration/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
+    run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/run-host-quality-job.yaml
+    post-run: xWalk-rpi5-tool/shell-agent/env-tool/playbooks/zuul/collect-host-quality-artifacts.yaml
     dependencies:
       - xwalk-shellcheck
       - xwalk-deployment-scripts

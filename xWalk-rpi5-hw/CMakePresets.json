@@ -39,7 +39,7 @@
       "inherits": "host-debug",
       "binaryDir": "${sourceParentDir}/build-host/clang-tidy",
       "cacheVariables": {
-        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;--config-file=${sourceParentDir}/scripts/integration/shell-agent/env-tool/quality/.clang-tidy",
+        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;--config-file=${sourceParentDir}/xWalk-rpi5-tool/shell-agent/env-tool/quality/.clang-tidy",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },

@@ -29,13 +29,13 @@ devloper-note/xwalk-rpi5-note/
 
 Keep Gerrit administration and CI documentation in `devloper-note/gerrit-note`.
 The complete developer-note wiki is configured by `devloper-note/mkdocs.yml` and operated through
-`scripts/integration/doc-tool/wiki.sh`. Keep generated Python environments and rendered HTML under the ignored
+`xWalk-rpi5-tool/doc-tool/wiki.sh`. Keep generated Python environments and rendered HTML under the ignored
 `build-devloper-note-wiki` directory. Do not commit generated site output. The local profile must bind to
 loopback. The college-server profile may bind publicly only on an authorized host. The GitHub profile may build
 a Pages artifact but must not push; publication follows the approved Gerrit integration synchronization flow.
 During staging, convert links from developer-note pages to tracked files outside `devloper-note` into GitHub
 source links for the deployed integration revision. Preserve checkout-relative links in the source Markdown.
-Gerrit and GitHub CI must run `scripts/integration/doc-tool/wiki.sh verify` to validate wiki-owned and repository-owned
+Gerrit and GitHub CI must run `xWalk-rpi5-tool/doc-tool/wiki.sh verify` to validate wiki-owned and repository-owned
 links, strictly build the generated Pages artifact, and inspect it before publication.
 
 Documentation must:

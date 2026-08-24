@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Validate integration metadata
-        run: scripts/integration/shell-agent/gerrit-tool/validate-integration-metadata.sh
+        run: xWalk-rpi5-tool/shell-agent/gerrit-tool/validate-integration-metadata.sh
 
   private-integration:
     if: vars.XWALK_GERRIT_PRIVATE_CI_ENABLED == 'true'
@@ -50,9 +50,9 @@ jobs:
           GERRIT_SUBMODULE_USERNAME: ${{ vars.GERRIT_SUBMODULE_USERNAME }}
           GERRIT_SERVER_HOST: ${{ vars.GERRIT_SERVER_HOST }}
           GERRIT_SSH_PORT: ${{ vars.GERRIT_SSH_PORT }}
-        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+        run: xWalk-rpi5-tool/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
       - name: Install host dependencies
-        run: scripts/integration/shell-agent/quality-tool/install-github-host-packages.sh $XWALK_INTEGRATION_PACKAGES
+        run: xWalk-rpi5-tool/shell-agent/quality-tool/install-github-host-packages.sh $XWALK_INTEGRATION_PACKAGES
       - name: Select compiler
         run: |
           if [ "${{ matrix.compiler }}" = clang ]; then echo "CC=clang" >> "$GITHUB_ENV"; echo "CXX=clang++" >> "$GITHUB_ENV"; else echo "CC=gcc" >> "$GITHUB_ENV"; echo "CXX=g++" >> "$GITHUB_ENV"; fi
@@ -89,9 +89,9 @@ jobs:
           GERRIT_SUBMODULE_USERNAME: ${{ vars.GERRIT_SUBMODULE_USERNAME }}
           GERRIT_SERVER_HOST: ${{ vars.GERRIT_SERVER_HOST }}
           GERRIT_SSH_PORT: ${{ vars.GERRIT_SSH_PORT }}
-        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+        run: xWalk-rpi5-tool/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
       - name: Install sanitizer dependencies
-        run: scripts/integration/shell-agent/quality-tool/install-github-host-packages.sh $XWALK_INTEGRATION_PACKAGES
+        run: xWalk-rpi5-tool/shell-agent/quality-tool/install-github-host-packages.sh $XWALK_INTEGRATION_PACKAGES
       - name: Configure ASan and UBSan
         run: CC=clang CXX=clang++ cmake --fresh -S xWalk-rpi5-hw -B build-host/sanitizers -G Ninja -DCMAKE_BUILD_TYPE=Debug -DXWALK_ENABLE_SANITIZERS=ON -DXWALK_ENABLE_STRICT_WARNINGS=ON
       - name: Build and test ASan and UBSan

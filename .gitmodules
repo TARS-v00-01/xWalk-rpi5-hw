@@ -26,6 +26,10 @@
 	path = xWalk-rpi5-hw/xWalkLibrary
 	url = ssh://192.168.1.158:29419/xWalkLibrary
 	branch = master
+[submodule "xWalk-rpi5-tool"]
+	path = xWalk-rpi5-tool
+	url = ssh://192.168.1.158:29419/xWalk-rpi5-tool
+	branch = master
 [submodule "xWalkTrace"]
 	path = xWalk-rpi5-hw/xWalkTrace
 	url = ssh://192.168.1.158:29419/xWalkTrace

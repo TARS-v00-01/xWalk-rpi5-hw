@@ -137,26 +137,26 @@ devloper-note/xwalk-rpi5-note/index.md  C++ architecture and module documentatio
 devloper-note/gerrit-note/              Gerrit administration and CI documentation
 devloper-note/mkdocs.yml                searchable developer-note wiki configuration
 Doc/image/                   hardware and project images referenced by documentation
-scripts/integration/                   independently reviewed Gerrit tooling component uplifted at the integration root
-scripts/integration/cpp-tool/          grouped C++ quality probes, fuzz harnesses, corpora, and documentation
-scripts/integration/cpp-tool/fuzz/     C++ fuzz harnesses and seed corpora
-scripts/integration/cpp-tool/quality/  host quality documentation and sanitizer availability probes
-scripts/integration/doc-tool/          developer-note wiki launch, verification, and dependency tooling
-scripts/integration/py-agent/          grouped Python development, board-integration, and Gerrit administration tooling
-scripts/integration/py-agent/board-tool/ host-only board tooling with the importer package under py-src/xWalkJiraImport
-scripts/integration/py-agent/dev-tool/ executable dependency, interface-generation, licence utilities, and host tests
-scripts/integration/py-agent/gerrit-tool/   Gerrit server, CI, review-control, and multi-repository administration tooling
-scripts/integration/shell-agent/       host-safe repository automation and configuration
-scripts/integration/shell-agent/jira-tool/ source launcher for the Jira importer
-scripts/integration/shell-agent/gerrit-tool/ Gerrit and GitHub Host Quality dispatch and metadata checks
-scripts/integration/shell-agent/deploy-tool/ provisioning, packaging assets, and deployment tests
-scripts/integration/shell-agent/env-tool/ grouped environment assets and configuration
-scripts/integration/shell-agent/env-tool/dtoverlays/ reviewed Raspberry Pi boot overlay blobs
-scripts/integration/shell-agent/env-tool/license/ model template and authenticated environment loader
-scripts/integration/shell-agent/env-tool/playbooks/ repository-controlled Zuul Ansible playbooks
-scripts/integration/shell-agent/env-tool/quality/ Clang-Tidy, Cppcheck, and gcovr configuration
-scripts/integration/shell-agent/quality-tool/ host quality, sanitizer, coverage, and analysis runners
-scripts/integration/shell-agent/repo-tool/ repository maintenance utilities
+xWalk-rpi5-tool/                   independently reviewed Gerrit tooling component uplifted at the integration root
+xWalk-rpi5-tool/cpp-tool/          grouped C++ quality probes, fuzz harnesses, corpora, and documentation
+xWalk-rpi5-tool/cpp-tool/fuzz/     C++ fuzz harnesses and seed corpora
+xWalk-rpi5-tool/cpp-tool/quality/  host quality documentation and sanitizer availability probes
+xWalk-rpi5-tool/doc-tool/          developer-note wiki launch, verification, and dependency tooling
+xWalk-rpi5-tool/py-agent/          grouped Python development, board-integration, and Gerrit administration tooling
+xWalk-rpi5-tool/py-agent/board-tool/ host-only board tooling with the importer package under py-src/xWalkJiraImport
+xWalk-rpi5-tool/py-agent/dev-tool/ executable dependency, interface-generation, licence utilities, and host tests
+xWalk-rpi5-tool/py-agent/gerrit-tool/   Gerrit server, CI, review-control, and multi-repository administration tooling
+xWalk-rpi5-tool/shell-agent/       host-safe repository automation and configuration
+xWalk-rpi5-tool/shell-agent/jira-tool/ source launcher for the Jira importer
+xWalk-rpi5-tool/shell-agent/gerrit-tool/ Gerrit and GitHub Host Quality dispatch and metadata checks
+xWalk-rpi5-tool/shell-agent/deploy-tool/ provisioning, packaging assets, and deployment tests
+xWalk-rpi5-tool/shell-agent/env-tool/ grouped environment assets and configuration
+xWalk-rpi5-tool/shell-agent/env-tool/dtoverlays/ reviewed Raspberry Pi boot overlay blobs
+xWalk-rpi5-tool/shell-agent/env-tool/license/ model template and authenticated environment loader
+xWalk-rpi5-tool/shell-agent/env-tool/playbooks/ repository-controlled Zuul Ansible playbooks
+xWalk-rpi5-tool/shell-agent/env-tool/quality/ Clang-Tidy, Cppcheck, and gcovr configuration
+xWalk-rpi5-tool/shell-agent/quality-tool/ host quality, sanitizer, coverage, and analysis runners
+xWalk-rpi5-tool/shell-agent/repo-tool/ repository maintenance utilities
 xWalk-rpi5-hw/xWalkAgent/                  application coordinators composed from caller-owned HAL objects
 xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/     movement and autonomous-response Agent group
 xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkPicarx/ complete PiCar-X movement and sensing coordinator
@@ -281,7 +281,7 @@ Use the root presets for repeat-under-load host verification so a failure stops
 the bounded repetition immediately.
 
 Keep GitHub and Gerrit/Zuul Host Quality behavior aligned through
-`scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh`. GitHub retains its workflow under
+`xWalk-rpi5-tool/shell-agent/gerrit-tool/run-host-ci-job.sh`. GitHub retains its workflow under
 `.github/workflows`, while Gerrit uses repository-controlled `.zuul.yaml` jobs
 and Ansible playbooks. Use `dependencies:` for Zuul execution ordering;
 `parent:` remains limited to job inheritance. Keep every CI job device-free and
@@ -432,7 +432,7 @@ transport values must not depend on platform POSIX signal numbers.
   `continue` preserves condition re-evaluation. Use the owning layer's
   `boolean` alias and an explicit `== false` failure check where applicable.
   Validate the complete project-owned source tree with
-  `python3 scripts/integration/py-agent/dev-tool/xWalkConditionCheck xWalk-rpi5-hw`.
+  `python3 xWalk-rpi5-tool/py-agent/dev-tool/xWalkConditionCheck xWalk-rpi5-hw`.
   Host `main()` delegates to the shared host application function. Raspberry Pi
   `main()` consumes the same parsed argument structure and retains only signal
   setup, resource validation, boot selection, and hardware composition.
@@ -506,13 +506,13 @@ transport values must not depend on platform POSIX signal numbers.
 - Before completing any C++ change, run the repository-owned formatter:
 
   ```bash
-  scripts/integration/py-agent/dev-tool/styler-tool/xWalkStyler format
+  xWalk-rpi5-tool/py-agent/dev-tool/styler-tool/xWalkStyler format
   ```
 
 - Before submitting or merging any C++ change, run its non-mutating CI check:
 
   ```bash
-  scripts/integration/py-agent/dev-tool/styler-tool/xWalkStyler check
+  xWalk-rpi5-tool/py-agent/dev-tool/styler-tool/xWalkStyler check
   ```
 
   ```cpp
@@ -760,11 +760,11 @@ transport values must not depend on platform POSIX signal numbers.
   environment file.
 - Store AI model selections only in the authenticated
   `xWalk-rpi5-hw/xWalkLibrary/X_WALK_LICENSE.KEY` file produced by
-  `scripts/integration/py-agent/dev-tool/xWalkLicenseTool`. Store API credentials only in the
+  `xWalk-rpi5-tool/py-agent/dev-tool/xWalkLicenseTool`. Store API credentials only in the
   developer's mode-`0600` `~/.netrc` under the documented actual provider
   hostnames. Use a fresh SecretBox key and nonce, retain the versioned `XWL1` header,
   and keep the decryption key outside the repository. The committed
-  `scripts/integration/shell-agent/env-tool/license/xWalkLicense.cfg` remains an empty model template.
+  `xWalk-rpi5-tool/shell-agent/env-tool/license/xWalkLicense.cfg` remains an empty model template.
   Keep `xWalk-rpi5-hw/xWalkLibrary/X_WALK_LICENSE.KEY` ignored and untracked because its
   authenticated ciphertext and serial are deployment-specific.
   `xWalkEnv.sh` must validate the complete model allowlist and supported netrc
@@ -1514,7 +1514,7 @@ meaning rather than the order of evaluation. Do not use names such as `temp`,
   `/var/lib/xwalk`, `/var/cache/xwalk`, or `/run/xwalk`.
 - Keep Raspberry Pi setup idempotent and dry-run-first. Maintain the reviewed
   Robot HAT v4, `xwalk` runtime-user, device-node, and CSI-camera defaults in
-  `scripts/integration/shell-agent/deploy-tool/rpi-defaults.conf`; preserve explicit
+  `xWalk-rpi5-tool/shell-agent/deploy-tool/rpi-defaults.conf`; preserve explicit
   command-line overrides and do not infer or install a board overlay from
   failed discovery.
 - Grant device permissions through standard operating-system groups and exact

@@ -6,7 +6,7 @@ on:
     paths:
       - devloper-note
       - devloper-note/**
-      - scripts/integration/doc-tool/**
+      - xWalk-rpi5-tool/doc-tool/**
       - .github/workflows/developer-note-pages.yml
   workflow_dispatch:
 
@@ -27,7 +27,7 @@ jobs:
       - name: Validate the integrated repository metadata
         env:
           XWALK_GITHUB_METADATA_ONLY: 'true'
-        run: scripts/integration/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
+        run: xWalk-rpi5-tool/shell-agent/gerrit-tool/checkout-gerrit-submodules.sh
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -38,7 +38,7 @@ jobs:
           XWALK_WIKI_GITHUB_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
           XWALK_WIKI_GITHUB_SOURCE_REPOSITORY: https://github.com/${{ github.repository }}
           XWALK_WIKI_GITHUB_SOURCE_REVISION: ${{ github.sha }}
-        run: scripts/integration/doc-tool/wiki.sh verify --site-url "$XWALK_WIKI_GITHUB_URL"
+        run: xWalk-rpi5-tool/doc-tool/wiki.sh verify --site-url "$XWALK_WIKI_GITHUB_URL"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: build-devloper-note-wiki/github-site

@@ -1,2 +1,0 @@
-# Keep documentation builds reproducible across local, college-server, and CI profiles.
-mkdocs-material==9.7.7

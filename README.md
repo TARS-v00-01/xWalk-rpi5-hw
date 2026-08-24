@@ -24,7 +24,7 @@ MyPiCarX/
 │   ├── gerrit-note/           Gerrit administration and CI documentation
 │   └── xwalk-rpi5-note/       C++ architecture, build, and deployment documentation
 ├── xWalk-rpi5-iw/             Interface schemas and generated bindings
-└── scripts/integration/           CI, Gerrit, deployment, quality, and maintenance tools
+└── xWalk-rpi5-tool/           CI, Gerrit, deployment, quality, and maintenance tools
 ```
 
 ## Prerequisites
@@ -119,7 +119,7 @@ confirming the Raspberry Pi model, Robot HAT revision, wiring, power, clear move
 - [Build and open the developer-note wiki](devloper-note/README.md)
 - [Build and installation guide](devloper-note/xwalk-rpi5-note/Doc/note/Installation.md)
 - [Controller and CLI overview](xWalk-rpi5-hw/xWalkController/README.md)
-- [Development and maintenance tools](scripts/integration/README.md)
+- [Development and maintenance tools](xWalk-rpi5-tool/README.md)
 - [Repository instructions](AGENTS.md)
 
 ## Run Gerrit and Gerrit CI
@@ -144,19 +144,19 @@ environment override to disable push-triggered startup.
 Assess the local host before the first installation:
 
 ```bash
-scripts/integration/py-agent/gerrit-tool/local-linux/gerrit-local.sh assess
+xWalk-rpi5-tool/py-agent/gerrit-tool/local-linux/gerrit-local.sh assess
 ```
 
 Install and start a local Gerrit instance when it has not been installed previously:
 
 ```bash
-scripts/integration/py-agent/gerrit-tool/local-linux/gerrit-local.sh install
+xWalk-rpi5-tool/py-agent/gerrit-tool/local-linux/gerrit-local.sh install
 ```
 
 Start an existing local Gerrit instance after a reboot or shutdown:
 
 ```bash
-scripts/integration/py-agent/gerrit-tool/local-linux/gerrit-local.sh start
+xWalk-rpi5-tool/py-agent/gerrit-tool/local-linux/gerrit-local.sh start
 ```
 
 After installation, use the generated management commands to inspect and control the server:
@@ -176,8 +176,8 @@ git config --file "$HOME/gerrit-site/etc/gerrit.config" --get gerrit.canonicalWe
 ```
 
 The local profile normally exposes Gerrit SSH on port `29419`. Installation details and troubleshooting are in the
-[local Gerrit guide](scripts/integration/py-agent/gerrit-tool/local-linux/README.md). Administrators operating the managed
-server profile should use the separate [Gerrit administration guide](scripts/integration/py-agent/gerrit-tool/README.md).
+[local Gerrit guide](xWalk-rpi5-tool/py-agent/gerrit-tool/local-linux/README.md). Administrators operating the managed
+server profile should use the separate [Gerrit administration guide](xWalk-rpi5-tool/py-agent/gerrit-tool/README.md).
 
 ### Run Gerrit Host Quality CI
 
@@ -226,10 +226,10 @@ Selecting **Mark As Active** in Gerrit triggers CI for the current WIP patch set
 Run representative repository-owned checks locally before uploading:
 
 ```bash
-scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh preparation
-scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh developer-note-wiki
-scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh deployment-scripts
-scripts/integration/shell-agent/gerrit-tool/run-host-ci-job.sh build-and-test gcc Debug
+xWalk-rpi5-tool/shell-agent/gerrit-tool/run-host-ci-job.sh preparation
+xWalk-rpi5-tool/shell-agent/gerrit-tool/run-host-ci-job.sh developer-note-wiki
+xWalk-rpi5-tool/shell-agent/gerrit-tool/run-host-ci-job.sh deployment-scripts
+xWalk-rpi5-tool/shell-agent/gerrit-tool/run-host-ci-job.sh build-and-test gcc Debug
 ```
 
 These checks are host-safe and do not authorize physical hardware tests.
