@@ -1,36 +1,36 @@
 [submodule "DevloperNote"]
 	path = devloper-note
-	url = ssh://192.168.1.158:29419/DevloperNote
+	url = ../xWalkDeveloperNote.git
 	branch = master
 [submodule "xWalkAgent"]
 	path = xWalk-rpi5-hw/xWalkAgent
-	url = ssh://192.168.1.158:29419/xWalkAgent
+	url = ../xWalkAgent.git
 	branch = master
 [submodule "xWalkAudioResources"]
 	path = xWalk-rpi5-hw/xWalkAudioResources
-	url = ssh://192.168.1.158:29419/xWalkAudioResources
+	url = ../xWalkAudioResources.git
 	branch = master
 [submodule "xWalkController"]
 	path = xWalk-rpi5-hw/xWalkController
-	url = ssh://192.168.1.158:29419/xWalkController
+	url = ../xWalkController.git
 	branch = master
 [submodule "xWalkHal"]
 	path = xWalk-rpi5-hw/xWalkHal
-	url = ssh://192.168.1.158:29419/xWalkHal
+	url = ../xWalkHal.git
 	branch = master
 [submodule "xWalk-rpi5-iw"]
 	path = xWalk-rpi5-iw
-	url = ssh://192.168.1.158:29419/xWalk-rpi5-iw
+	url = ../xWalk-rpi5-iw.git
 	branch = master
 [submodule "xWalkLibrary"]
 	path = xWalk-rpi5-hw/xWalkLibrary
-	url = ssh://192.168.1.158:29419/xWalkLibrary
+	url = ../xWalkLibrary.git
 	branch = master
 [submodule "xWalk-rpi5-tool"]
 	path = xWalk-rpi5-tool
-	url = ssh://192.168.1.158:29419/xWalk-rpi5-tool
+	url = ../xWalk-rpi5-tool.git
 	branch = master
 [submodule "xWalkTrace"]
 	path = xWalk-rpi5-hw/xWalkTrace
-	url = ssh://192.168.1.158:29419/xWalkTrace
+	url = ../xWalkTrace.git
 	branch = master
