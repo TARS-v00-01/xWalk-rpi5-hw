@@ -94,3 +94,6 @@ cmake --preset host
 
 If VS Code still shows cached include errors, run **C/C++: Reset IntelliSense Database** and reload the window.
 Do not copy generated compilation databases into Git; they contain machine-specific build paths.
+
+Both Cppcheck targets load its bundled GoogleTest model so parameterized `TEST_P` cases remain analyzable.
+The full-module regression still exercises both board profiles; no test source is excluded from static analysis.

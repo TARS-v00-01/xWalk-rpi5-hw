@@ -802,6 +802,7 @@ if(XWALK_CPPCHECK_EXECUTABLE AND CMAKE_EXPORT_COMPILE_COMMANDS)
     add_custom_target(cppcheck
         COMMAND "${XWALK_CPPCHECK_EXECUTABLE}"
             "--project=${CMAKE_BINARY_DIR}/compile_commands.json"
+            --library=googletest
             --enable=warning,performance,portability
             --error-exitcode=1
             "-i${XWALK_IW_GENERATED_DIRECTORY}"
@@ -813,6 +814,7 @@ if(XWALK_CPPCHECK_EXECUTABLE AND CMAKE_EXPORT_COMPILE_COMMANDS)
     add_custom_target(cppcheck-full
         COMMAND "${XWALK_CPPCHECK_EXECUTABLE}"
             "--project=${CMAKE_BINARY_DIR}/compile_commands.json"
+            --library=googletest
             --enable=warning,style,performance,portability
             --inconclusive
             "-i${XWALK_IW_GENERATED_DIRECTORY}"
