@@ -62,3 +62,9 @@ systemctl --user enable --now xwalk-hardware-github-actions-runner.service
 
 Retain the runner's `.env`, `.runner`, `.credentials*`, `.path` and any existing local overrides when updating the
 runner distribution. The service template and environment example reproduce the deployment without storing secrets.
+
+## Root hardware sequence tests
+
+The root `xWalkTest/` suite shares one production Boot fixture across Robot HAT v4 and v5 profiles. See
+[full hardware module regression](BUILDING.md#full-hardware-module-regression-from-the-root) for the sequence
+coverage and the single command that builds and tests HAL, Driver, Controller, Library, and audio resources.

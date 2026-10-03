@@ -557,6 +557,9 @@ add_subdirectory(xWalkDriver)
 set(XWALK_CONTROLLER_BUILD_HOST_TESTS ${XWALK_ROOT_BUILD_HOST} CACHE BOOL
     "Controlled by the workspace root" FORCE)
 add_subdirectory(xWalkController)
+if(BUILD_TESTING AND XWALK_HAL_BUILD_HOST AND XWALK_CONTROLLER_BUILD_HOST)
+    add_subdirectory(xWalkTest)
+endif()
 if(XWALK_CLI_INSTALL_RUNTIME)
     install(PROGRAMS
         "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/env-tool/license/xWalkEnv.sh"

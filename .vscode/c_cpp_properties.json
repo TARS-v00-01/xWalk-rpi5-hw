@@ -244,7 +244,11 @@
                 "${workspaceFolder}/xWalkLibrary/common/include",
                 "${workspaceFolder}/xWalkLibrary/auto-gen",
                 "${workspaceFolder}/xWalkController/xWalkBoot/include",
-                "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkCameraSvc/xWalkTest/include"
+                "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkCameraSvc/xWalkTest/include",
+                "${workspaceFolder}/xWalkTest/include",
+                "${workspaceFolder}/xWalkController/test/include",
+                "${workspaceFolder}/xWalkHal/simulation/xWalkRobotHat/include",
+                "${workspaceFolder}/xWalkHal/interface/xWalkUtils/hardware/include"
             ],
             "browse": {
                 "path": [
@@ -687,7 +691,9 @@
                     "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkRuntime/include/*",
                     "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkRuntime/src/*",
                     "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkProtocol/include/*",
-                    "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkProtocol/src/*"
+                    "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkProtocol/src/*",
+                    "${workspaceFolder}/xWalkTest/include/*",
+                    "${workspaceFolder}/xWalkTest/src/*"
                 ],
                 "limitSymbolsToIncludedHeaders": false,
                 "databaseFilename": "${workspaceFolder}/../xWalk-rpi5-node/build-host/editor-index/hardware-source-navigation.vc.db"
@@ -702,7 +708,8 @@
                 "XWALK_PICARX_CONFIG_FILE=\"xWalk-rpi5-hw/xWalkController/xWalkConfig/picar-x.conf\"",
                 "XWALK_TEST_SOUND_DIRECTORY=\"${workspaceFolder}/../xWalk-rpi5-hw/xWalkAudioResources/sounds\"",
                 "XWALK_TEST_MUSIC_DIRECTORY=\"${workspaceFolder}/../xWalk-rpi5-hw/xWalkAudioResources/music\"",
-                "XWALK_VOICE_ACTIVE_CAR_CONFIG_DIRECTORY=\"${workspaceFolder}/../xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkVoiceActiveCar/config\""
+                "XWALK_VOICE_ACTIVE_CAR_CONFIG_DIRECTORY=\"${workspaceFolder}/../xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkVoiceActiveCar/config\"",
+                "XWALK_HW_TEST_DIRECTORY=\"${workspaceFolder}/../build-host/cmake/xWalkTest/test-data\""
             ],
             "compileCommands": [
                 "${workspaceFolder}/../build-host/cmake/compile_commands.json",
