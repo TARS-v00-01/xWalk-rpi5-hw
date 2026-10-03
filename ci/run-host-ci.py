@@ -45,6 +45,8 @@ def main() -> None:
             '-o', 'StrictHostKeyChecking=yes', '-o', f'UserKnownHostsFile={known_hosts}',
         ])
         remote = f'ssh://{user}@{host}:{port}'
+    # Match the managed Gerrit runner's module scheduling for timing-sensitive host simulations.
+    os.environ.setdefault('XWALK_CI_MAX_WORKERS', '1')
     os.environ['GIT_TERMINAL_PROMPT'] = '0'
     artifacts = source / 'ci-artifacts'
     artifacts.mkdir(exist_ok=True)

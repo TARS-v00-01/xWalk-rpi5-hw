@@ -29,7 +29,8 @@ expects its shared dependencies beside `xWalk-rpi5-hw` in the product workspace.
 
 The repository-owned CI entry point creates a temporary product workspace from the submitted revisions recorded
 in `ci/context.json`, overlays this exact hardware commit, initializes its exact component gitlinks, and runs the
-same hardware-only quality graph used by Gerrit:
+same hardware-only quality graph used by Gerrit. Module stages run sequentially by default, matching the managed
+Gerrit runner and avoiding CPU contention during timing-sensitive sensor simulations:
 
 ```bash
 python3 -B ci/run-host-ci.py
@@ -39,3 +40,25 @@ By default, it reads the private GitHub mirrors using configured Git credentials
 existing `GERRIT_SERVER_HOST`, `GERRIT_SSH_PORT`, `GERRIT_SUBMODULE_USERNAME`, `GERRIT_SUBMODULE_SSH_KEY_FILE`, and
 `GERRIT_SSH_KNOWN_HOSTS_FILE` settings for authenticated, host-key-verified Gerrit checkout. Results remain under
 `ci-artifacts/`. No hardware test or robot operation is run automatically.
+
+## Dedicated GitHub runner
+
+Register an official Linux x64 GitHub Actions runner for this repository with the `xwalk-ci` label, installed at
+`$HOME/apps/github-actions-runner-xwalk-hw`. Use the same host dependencies as the product CI runner. Registration
+tokens and the resulting `.credentials*` files stay private on the runner and must never be committed.
+
+Copy [runner.env.example](ci/runner/runner.env.example) to the runner's `.env`, replacing the endpoint and paths
+with its existing Gerrit read credentials and pinned host keys. Keep the private key mode `0600`. The runner only
+reads submitted dependencies; Gerrit handles all publication. Back up existing runner configuration privately
+before changing it.
+
+Install [the user service](ci/runner/xwalk-hardware-github-actions-runner.service) under
+`$HOME/.config/systemd/user/`, then start it:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now xwalk-hardware-github-actions-runner.service
+```
+
+Retain the runner's `.env`, `.runner`, `.credentials*`, `.path` and any existing local overrides when updating the
+runner distribution. The service template and environment example reproduce the deployment without storing secrets.
