@@ -2274,3 +2274,23 @@ Never advance a nested component directly in the product index or import an unre
 Tool, IW, Trace, Node, OS and developer notes remain independently owned product dependencies.
 Use explicit GitHub HTTPS URLs for every level, and validate exact Gerrit-submitted ancestry in CI.
 Hardware standalone CI records submitted product and Tool context revisions and runs no physical hardware tests.
+
+## Plain command-line help
+
+C++ command-line entry points accept `-h` and `--help`, print usage and aligned options to standard output,
+and return success before runtime services, hardware or GUI initialization. Route help through the trace-owned
+`xwalk::trace::writeCommandText` sink; OS clients use `XWalkOsTrace::commandText` and its standalone stub.
+Help is literal terminal text: no timestamps, severity labels, UID selectors or trace configuration writes.
+Keep normal diagnostic records on their existing trace APIs. Use stderr and a nonzero exit status for usage errors.
+
+Standard-stream calls (`puts`, `fputs`, `putc`, `fputc`, `putchar`, `printf`, `fprintf`, their `v` variants,
+`fwrite` and `fflush`, including `std::` spellings) use the trace-owned `XWALK_TRACE_*` output macros.
+These are transparent C stdio adapters, not severity records: preserve stream selection, newlines, binary
+bytes, printf checking and return values. The adapter boundary intentionally retains native FILE/va_list types.
+Do not replace in-memory formatting, Qt widget text or structured protocol output with decorated diagnostics.
+Help content belongs in runtime JSON, not generated C++ strings; load it per invocation and validate before printing.
+
+Bounded in-memory formatting uses `XWALK_SNPRINTF` and `XWALK_VSNPRINTF` from
+`xWalkLibrary/common/include/xHal_Rpi5CarFormatFunctions.h`. Keep these macros
+in the library; they preserve standard return values and compiler diagnostics
+and do not emit trace output.
