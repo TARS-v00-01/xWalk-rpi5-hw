@@ -10,7 +10,7 @@ read and follow both knowledge-base documents:
 
 Treat these files as the coding, architecture, and documentation knowledge base
 for the complete `MyPiCarX` workspace, including `xWalk-rpi5-hw/xWalkLibrary/common`, `xWalkHal`,
-`xWalkAgent`, and `xWalkController`.
+`xWalkDriver`, and `xWalkController`.
 
 Apply the guide to every future implementation. Preserve intentional existing
 architecture, naming, dependency boundaries, validation behavior, test safety,
@@ -71,7 +71,7 @@ state, fixtures, mappings, callbacks, and factories.
 
 ## Repository-wide test support layout
 
-For tests in `xWalkHal`, `xWalkAgent`, and `xWalkController`, move reusable
+For tests in `xWalkHal`, `xWalkDriver`, and `xWalkController`, move reusable
 callback state, fake-backend structures, mapping records, callback declarations,
 and callback-table factories into a dedicated `<Component>TestSupport.h` under
 the owning test `include` directory. Put non-trivial implementations in the
@@ -116,11 +116,37 @@ For a WIP change, Gerrit's **Mark As Active** button is the Activate action.
 Clearing WIP through that button triggers CI for the current patch set. Moving
 an active change into WIP must not trigger CI.
 
-GitHub contains only the configured integrated repository. During the current
-migration that repository is `xWalkPiCarAI/master`; the final target is
-`xWalk-rpi5-hw/master`. Component repositories must not have GitHub remotes. After
+GitHub hosts `xWalkPiCarAI/master` and private component repositories for recursive cloning.
+Use explicit `https://github.com/TARS-v00-01/<component>.git` submodule URLs and permit GitHub fetch remotes.
+Every integrated gitlink must be available in its GitHub component repository before publishing the integration.
+Gerrit remains the source review and submission authority; GitHub fetch access does not authorize direct pushes.
+After
 an integration change passes complete CI, receives approval, and is submitted
 to the configured Gerrit integration branch, the dedicated synchronization
 service may fast-forward that exact submitted commit to the matching GitHub
 branch. Do not use a direct, force, mirror, wildcard, or component GitHub push
 as a preliminary, backup, or alternate publication path.
+
+## Configuration retention and cleanup
+
+Keep required build, runtime, deployment and CI defaults, schemas, templates,
+and configuration generators tracked in their owning Git submodule. An
+operational fix to an installed configuration must also update its tracked
+source template; a file under `/tmp`, a build directory or a server home is
+not a reproducible source of configuration.
+
+Before cleanup, reset, synchronization or deployment, inventory configuration
+and saved state in every affected submodule and on the target device. Preserve
+local overrides, calibration, account stores, device pairing, credentials and
+installed service configuration outside the cleanup paths, with private access
+permissions. Verify the backup before deleting anything and restore local state
+after synchronization. A request to remove local code changes or build outputs
+does not authorize deleting saved configuration or accounts. Never run blanket
+`git clean -fdx` against a live application or device checkout.
+
+Track sanitized examples for secret-bearing configuration and document how to
+restore them. Never commit passwords, tokens, private keys, live account stores
+or pairing credentials merely to retain configuration. Generated configuration
+must be reproducible from tracked inputs; preserve local overrides separately.
+Before publication, verify required configuration is tracked in the owning
+submodule, not merely present on disk or hidden by an ignore rule.

@@ -150,35 +150,147 @@
         "XWALK_BUILD_RPI": "ON",
         "XWALK_ENABLE_PACKAGING": "ON"
       }
+    },
+    {
+      "name": "host",
+      "displayName": "Host build",
+      "inherits": "host-debug"
+    },
+    {
+      "name": "rpi",
+      "displayName": "Raspberry Pi native build",
+      "inherits": "rpi-release"
+    },
+    {
+      "name": "rpi-cross",
+      "displayName": "Raspberry Pi ARM64 cross build",
+      "inherits": "aarch64-rpi-release"
+    },
+    {
+      "name": "module",
+      "displayName": "Controller module verification",
+      "generator": "Ninja",
+      "binaryDir": "${sourceParentDir}/build-module/cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "XWALK_CONTROLLER_BUILD_MODULE": "ON",
+        "XWALK_CONTROLLER_BUILD_HOST_TESTS": "ON",
+        "XWALK_CONTROLLER_BUILD_HOST": "ON",
+        "XWALK_CONTROLLER_BUILD_RPI5": "OFF",
+        "XWALK_BUILD_RPI": "OFF"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "host-debug", "configurePreset": "host-debug" },
-    { "name": "host-release", "configurePreset": "host-release" },
-    { "name": "sanity", "configurePreset": "sanity" },
-    { "name": "clang-tidy", "configurePreset": "clang-tidy" },
-    { "name": "sanitizers", "configurePreset": "sanitizers" },
-    { "name": "leak-sanitizer", "configurePreset": "leak-sanitizer" },
-    { "name": "thread-sanitizer", "configurePreset": "thread-sanitizer" },
-    { "name": "coverage", "configurePreset": "coverage" },
-    { "name": "coverage-clang", "configurePreset": "coverage-clang" },
-    { "name": "clang-analyzer", "configurePreset": "clang-analyzer" },
-    { "name": "valgrind", "configurePreset": "valgrind" },
-    { "name": "fuzz", "configurePreset": "fuzz", "targets": ["xWalkFuzzers"] },
-    { "name": "rpi-release", "configurePreset": "rpi-release" },
-    { "name": "rpi-provision", "configurePreset": "rpi-release", "targets": ["rpi-provision"] },
-    { "name": "aarch64-rpi-release", "configurePreset": "aarch64-rpi-release" }
+    {
+      "name": "host-debug",
+      "configurePreset": "host-debug"
+    },
+    {
+      "name": "host-release",
+      "configurePreset": "host-release"
+    },
+    {
+      "name": "sanity",
+      "configurePreset": "sanity"
+    },
+    {
+      "name": "clang-tidy",
+      "configurePreset": "clang-tidy"
+    },
+    {
+      "name": "sanitizers",
+      "configurePreset": "sanitizers"
+    },
+    {
+      "name": "leak-sanitizer",
+      "configurePreset": "leak-sanitizer"
+    },
+    {
+      "name": "thread-sanitizer",
+      "configurePreset": "thread-sanitizer"
+    },
+    {
+      "name": "coverage",
+      "configurePreset": "coverage"
+    },
+    {
+      "name": "coverage-clang",
+      "configurePreset": "coverage-clang"
+    },
+    {
+      "name": "clang-analyzer",
+      "configurePreset": "clang-analyzer"
+    },
+    {
+      "name": "valgrind",
+      "configurePreset": "valgrind"
+    },
+    {
+      "name": "fuzz",
+      "configurePreset": "fuzz",
+      "targets": [
+        "xWalkFuzzers"
+      ]
+    },
+    {
+      "name": "rpi-release",
+      "configurePreset": "rpi-release"
+    },
+    {
+      "name": "rpi-provision",
+      "configurePreset": "rpi-release",
+      "targets": [
+        "rpi-provision"
+      ]
+    },
+    {
+      "name": "aarch64-rpi-release",
+      "configurePreset": "aarch64-rpi-release"
+    },
+    {
+      "name": "host",
+      "configurePreset": "host"
+    },
+    {
+      "name": "rpi",
+      "configurePreset": "rpi"
+    },
+    {
+      "name": "rpi-cross",
+      "configurePreset": "rpi-cross"
+    },
+    {
+      "name": "module",
+      "configurePreset": "module"
+    }
   ],
   "testPresets": [
     {
       "name": "host-debug",
       "configurePreset": "host-debug",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error" }
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
     },
-    { "name": "host-release", "inherits": "host-debug", "configurePreset": "host-release" },
-    { "name": "sanity", "inherits": "host-debug", "configurePreset": "sanity" },
-    { "name": "sanitizers", "inherits": "host-debug", "configurePreset": "sanitizers" },
+    {
+      "name": "host-release",
+      "inherits": "host-debug",
+      "configurePreset": "host-release"
+    },
+    {
+      "name": "sanity",
+      "inherits": "host-debug",
+      "configurePreset": "sanity"
+    },
+    {
+      "name": "sanitizers",
+      "inherits": "host-debug",
+      "configurePreset": "sanitizers"
+    },
     {
       "name": "leak-sanitizer",
       "inherits": "host-debug",
@@ -195,14 +307,33 @@
       "configurePreset": "sanity",
       "execution": {
         "noTestsAction": "error",
-        "repeat": { "mode": "until-fail", "count": 20 }
+        "repeat": {
+          "mode": "until-fail",
+          "count": 20
+        }
       }
     },
-    { "name": "coverage", "inherits": "host-debug", "configurePreset": "coverage" },
+    {
+      "name": "coverage",
+      "inherits": "host-debug",
+      "configurePreset": "coverage"
+    },
     {
       "name": "coverage-clang",
       "inherits": "host-debug",
       "configurePreset": "coverage-clang"
+    },
+    {
+      "name": "host",
+      "inherits": "host-debug",
+      "configurePreset": "host"
+    },
+    {
+      "name": "module",
+      "configurePreset": "module",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

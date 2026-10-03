@@ -1,0 +1,9 @@
+CompileFlags:
+  CompilationDatabase: ../build-host/cmake
+---
+If:
+  PathMatch: [.*hardware/.*, xWalkHal/xWalkTest/xExample/.*, xWalkHal/xWalkTest/xSequenceTest/main\.cpp, .*xControllerBootRpi5\.cpp]
+# Recorded-media host tests live beside native providers.
+  PathExclude: [.*OpenCvHostTest\.(cpp|h), .*OpenCvTest(Support)?\.(cpp|h)]
+CompileFlags:
+  CompilationDatabase: ../build-host/rpi5-navigation

@@ -31,12 +31,22 @@ Keep Gerrit administration and CI documentation in `devloper-note/gerrit-note`.
 The complete developer-note wiki is configured by `devloper-note/mkdocs.yml` and operated through
 `xWalk-rpi5-tool/doc-tool/wiki.sh`. Keep generated Python environments and rendered HTML under the ignored
 `build-devloper-note-wiki` directory. Do not commit generated site output. The local profile must bind to
-loopback. The college-server profile may bind publicly only on an authorized host. The GitHub profile may build
-a Pages artifact but must not push; publication follows the approved Gerrit integration synchronization flow.
+loopback. The college-server profile may bind publicly only on an authorized host. The GitHub profile may build a
+private Actions artifact but must not push or publish a Pages site. Artifact creation follows the approved Gerrit
+integration synchronization flow. A Pages deployment requires an organization plan that supports the private
+repository, an explicit privacy review, and a separate reviewed Gerrit change.
+An optional global organization wiki at `https://tars-v00-01.github.io/` requires the exact repository name
+`TARS-v00-01/tars-v00-01.github.io`. Treat the complete organization site as public: it must consume only a separately
+reviewed, sanitized documentation source from an explicit Gerrit mapping. Never publish the private developer-note
+artifact, component source, internal addresses, credentials, or restricted metadata to the organization site.
 During staging, convert links from developer-note pages to tracked files outside `devloper-note` into GitHub
 source links for the deployed integration revision. Preserve checkout-relative links in the source Markdown.
 Gerrit and GitHub CI must run `xWalk-rpi5-tool/doc-tool/wiki.sh verify` to validate wiki-owned and repository-owned
-links, strictly build the generated Pages artifact, and inspect it before publication.
+links, strictly build the generated documentation artifact, and inspect it before distribution. Gerrit remains the
+authoritative review system. Only the configured `TARS-v00-01/xWalkPiCarAI/master` integration is synchronized
+to GitHub after Gerrit submission. GitHub Actions fetch pinned component source directly from Gerrit on the
+configured self-hosted runner. Documentation must not instruct developers to publish component mirrors or push
+or review through GitHub.
 
 Documentation must:
 

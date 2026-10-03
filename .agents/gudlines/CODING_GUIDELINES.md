@@ -30,8 +30,14 @@ must be deferred, upload the change as WIP:
 git push origin HEAD:refs/for/master%wip
 ```
 
-Source `xWalk-git-env.sh` once per checkout to install the repository-local
-Gerrit push transport. With `XWALK_GIT_AUTO_START=true`, every ordinary Gerrit
+Source `xWalk-rpi5-tool/shell-agent/env-tool/git.sh` once per checkout to install
+the repository-local
+Gerrit push transport. An ordinary `git push` from the integration checkout
+or an initialized gitlink repository targets `HEAD:refs/for/master` in its
+own Gerrit project through the default `origin` remote. Uninitialized gitlink
+directories must not alter the integration repository configuration. When the
+connector is absent, use the configured authenticated Gerrit SSH endpoint.
+With the connector and `XWALK_GIT_AUTO_START=true`, every ordinary Gerrit
 push starts the server stack installed on the current machine before SSH:
 personal workstations start their local profile, the college host starts its
 managed profile, and clients without a local installation connect to the
@@ -41,19 +47,50 @@ For a WIP change, use Gerrit's **Mark As Active** button as the Activate action.
 The WIP-to-active transition triggers CI for the current patch set. Moving an
 active change into WIP does not trigger CI.
 
-Never push a component change to GitHub. GitHub contains only the configured
-integrated repository. During migration, `xWalkPiCarAI/master` is the active
-integration branch; the final target is `xWalk-rpi5-hw/master`. A Gerrit change may
-be submitted only after its current patch set satisfies the configured review
-and automatic verification requirements. The dedicated synchronization
-service may fast-forward only the exact submitted, approved, CI-verified
-integration revision to the matching GitHub branch.
+Never push a component change directly to GitHub. GitHub hosts the configured integrated repository,
+`TARS-v00-01/xWalkPiCarAI/master`, and private component repositories for recursive cloning.
+Use explicit GitHub HTTPS URLs in `.gitmodules`; GitHub component fetch remotes are permitted.
+All pinned component commits must exist on GitHub before the integration revision is published there.
+Existing clones refresh local overrides with `git submodule sync --recursive` before initialization.
+Cloning requires GitHub access to every private component, but no Gerrit connection or environment script.
+The dedicated synchronization service may
+fast-forward only the exact submitted Gerrit integration commit after complete
+CI and approval. Gerrit review refs must not be published to GitHub.
+GitHub pull requests are not the project review workflow.
+
+GitHub jobs that need component source run on the configured `xwalk-ci`
+self-hosted runner and use `.github/actions/checkout-private-submodules` to
+fetch the exact integration gitlinks directly from Gerrit. The runner provides
+`GERRIT_SERVER_HOST`, `GERRIT_SSH_PORT`, `GERRIT_SUBMODULE_USERNAME`,
+`GERRIT_SUBMODULE_SSH_KEY_FILE`, and `GERRIT_SSH_KNOWN_HOSTS_FILE`. Require
+pinned SSH host keys and a private key file inaccessible to group and others.
+Verify every pinned revision is reachable from Gerrit's submitted `master`
+branch. Do not fall back to component GitHub mirrors or scan and trust host
+keys during a job. These jobs remain host-safe.
+
+Before changing a reused GitHub runner's component revision, preserve tracked, staged, and untracked
+changes in a local Git stash. Permit automatic preservation only when `GITHUB_ACTIONS=true` and
+`GITHUB_WORKSPACE` equals the integration root. Report the stash identity, keep it out of source artifacts,
+and leave dirty developer workspaces untouched. Clean component checkouts must not create extra stashes.
+
+`xWalkPiCarAI/master` is the product integration branch. Its nested hardware
+integration is `xWalk-rpi5-hw/master`; the obsolete `xWalk-rpi5` project is retired. A Gerrit change may be submitted only after
+its current patch set satisfies the configured review and automatic
+verification requirements. The integration repository pins exact submitted
+component revisions, and each pointer update passes through its own Gerrit
+review and Submit before replication.
 
 Every component Gerrit patch set must use a module-scoped Host Quality graph containing Preparation, only the
 reviewed component's checks, and the Host Quality Gate. Do not execute unrelated module suites in a component
 review. Dependency checkout may initialize exact pinned integration gitlinks needed by the selected component's
 standalone build, but that does not authorize their quality suites. Automatic CI must remain host-safe and must
 not select hardware-labelled tests.
+
+Run distinct Gerrit changes through separate bounded verification workers, including complete integration
+changes. A newer patch set cancels only an older run with the same Gerrit project and change number. A
+change-abandoned event cancels only that change's queued or running flow. On GitHub, key Host Quality concurrency
+by the exact submitted commit SHA so different submitted commits run independently while duplicate executions of
+one commit may cancel.
 
 Every submitted component change must enter `xWalkPiCarAI/master` through a
 separate uplift review that replaces only the owning module source tree. The
@@ -62,6 +99,33 @@ requires the CI account's `Verified +1`, an authorized `Code-Review +2`, no
 unresolved blocking comments, a current mergeable patch set, and Gerrit's
 complete submit policy. Only the exact resulting merged commit may be
 synchronized to the configured GitHub `xWalkPiCarAI/master` branch.
+
+## Sourced Git update environment
+
+Both integrations provide `xwalk_env.sh`. Sourcing it initializes pinned submodules and restores manifest-owned
+assets; `--activate` only registers the checkout in the current Bash session. Its Git wrapper delegates the
+original command, then restores assets after successful pulls and submodule updates, including unchanged
+revisions. Preserve custom hooks, caller shell options, the working directory, and unrelated repositories.
+Do not store credentials in source or silently install system packages. Use the existing pinned, checksum-verified
+asset downloaders and external `HF_TOKEN` or netrc credentials. Restore failures must remain visible and nonzero
+without misreporting the Git result. `XWALK_SKIP_ASSETS=1` supports explicit source-only operations.
+Keep both integration entry points behaviorally aligned and exercise them with local Git fixture tests.
+
+## Application integration
+
+`xWalkPiCarApp` follows the same Gerrit review, CI, and submitted-commit replication policy as `xWalkPiCarAI`.
+Both integration repositories are public; their component repositories stay private. Integrations own metadata,
+documentation, licences, and CI configuration. Component changes enter as exact submitted gitlink uplifts,
+not copied source trees. App integration pins IW, tooling, Android, and Python. Hardware integration pins five hardware gitlinks. The product pins seven top-level gitlinks, including hardware and tooling. Each submitted IW or tooling change creates
+one independent uplift per integration. Application changes target only `xWalkPiCarApp`. Every integration uplift runs its complete host quality graph before submission.
+App integration also requires a separate `xWalk Quality` module after both application modules pass.
+Its checks are shared with component reviews: Python static analysis, branch coverage, bounded response races,
+seeded input probes and retained-memory regression; Java Release builds, Android lint, bounded response races,
+seeded input probes and JaCoCo regression limits. Keep handwritten UI code visible in coverage reports.
+Every quality check must have a bounded execution time and must block the final gate on failure.
+Dependency-aware CI scheduling must prevent quality and module jobs from mutating the same build tree concurrently.
+App protocol references are pinned by revision and blob in `INTEGRATION.json`, fetched privately into ignored
+`build/protocol-contracts`, and validated before builds. Do not commit reference source or generated build files.
 
 ## Language and compiler expectations
 
@@ -73,7 +137,7 @@ synchronized to the configured GitHub `xWalkPiCarAI/master` branch.
   `uint8`, `uint16`, `uint32`, `int32`, `float64`, and `size`, instead of adding
   unrelated spellings throughout the modules.
 - Qualify shared types through the owning layer's concise namespace: `hal::`
-  in xWalkHal, `agent::` in xWalkAgent, and `ctrl::` in xWalkController. The
+  in xWalkHal, `agent::` in xWalkDriver, and `ctrl::` in xWalkController. The
   common type header exports the same underlying generic aliases into
   `xwalk::hal`, `xwalk::agent`, and `xwalk::controller`; do not use `hal::int32`
   or another HAL-qualified generic alias from Agent or Controller code.
@@ -121,11 +185,16 @@ in the same build directory. The default aggregate build contains production
 libraries only. A host build must register every submodule host and unit test so plain
 `ctest` runs the complete host suite. An RPI build must register every submodule
 hardware test so plain `ctest` runs the complete hardware suite after deployment
-and safety approval. The `Doc` directory has no build system. Use the existing
+and safety approval. Full Node HOST and RPI5 products include the hardware aggregate before adding Node consumers, so the default
+build compiles all HAL and Driver libraries. `XWALK_BUILD_ALL_BACKENDS` enables compilation of every Linux
+provider independently of the runtime platform: HOST Boot retains simulation and hardware tests remain opt-in.
+The Node module preset omits this aggregate and continues to verify only Node interfaces.
+
+The `Doc` directory has no build system. Use the existing
 layout:
 
 ```text
-.vscode/                     workspace configuration for HAL and CLI
+.vscode/                     workspace configuration for product C++ development
 xWalk-rpi5-hw/.project                     Eclipse CDT product and host-build configuration
 xWalk-rpi5-hw/.cproject                    Eclipse CDT C++17 indexing and include-path configuration
 xWalk-rpi5-hw/.settings/                   Eclipse CDT project preferences
@@ -137,7 +206,7 @@ devloper-note/xwalk-rpi5-note/index.md  C++ architecture and module documentatio
 devloper-note/gerrit-note/              Gerrit administration and CI documentation
 devloper-note/mkdocs.yml                searchable developer-note wiki configuration
 Doc/image/                   hardware and project images referenced by documentation
-xWalk-rpi5-tool/                   independently reviewed Gerrit tooling component uplifted at the integration root
+xWalk-rpi5-tool/                   Gerrit tooling repository pinned and uplifted in both integrations
 xWalk-rpi5-tool/cpp-tool/          grouped C++ quality probes, fuzz harnesses, corpora, and documentation
 xWalk-rpi5-tool/cpp-tool/fuzz/     C++ fuzz harnesses and seed corpora
 xWalk-rpi5-tool/cpp-tool/quality/  host quality documentation and sanitizer availability probes
@@ -157,53 +226,47 @@ xWalk-rpi5-tool/shell-agent/env-tool/playbooks/ repository-controlled Zuul Ansib
 xWalk-rpi5-tool/shell-agent/env-tool/quality/ Clang-Tidy, Cppcheck, and gcovr configuration
 xWalk-rpi5-tool/shell-agent/quality-tool/ host quality, sanitizer, coverage, and analysis runners
 xWalk-rpi5-tool/shell-agent/repo-tool/ repository maintenance utilities
-xWalk-rpi5-hw/xWalkAgent/                  application coordinators composed from caller-owned HAL objects
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/     movement and autonomous-response Agent group
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkPicarx/ complete PiCar-X movement and sensing coordinator
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkLineTracking/ bounded grayscale line following
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkMoveExample/ bounded movement example
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkKeyboardControl/ keyboard-driven movement coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkObstacleAvoidance/ ultrasonic movement decisions
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkCliffDetection/ grayscale cliff-response state machine
-xWalk-rpi5-hw/xWalkAgent/xWalkVehicle/xWalkSelfDrive/ preset gestures, sounds, and action flow
-xWalk-rpi5-hw/xWalkAgent/xWalkCalibration/ sensor, servo, and motor calibration Agent group
-xWalk-rpi5-hw/xWalkAgent/xWalkCalibration/xWalkGrayscaleCalibration/ grayscale reference calibration
-xWalk-rpi5-hw/xWalkAgent/xWalkCalibration/xWalkServoMotorCalibration/ servo and motor calibration
-xWalk-rpi5-hw/xWalkAgent/xWalkCalibration/xWalkServoZeroing/ ordered Robot HAT servo zeroing
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/      camera, detection, tracking, and video Agent group
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/xWalkComputerVision/ color, face, QR, and photograph coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/xWalkFaceTracking/ face-to-camera-servo coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/xWalkBullFight/ red-target pursuit coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/xWalkTreasureHunt/ color driving and spoken-prompt coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/xWalkVideoRecording/ continuous OpenCV AVI coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/xWalkVideoCar/ camera-assisted driving coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVision/xWalkCameraCapture/ camera-to-voice image callback adaptation
-xWalk-rpi5-hw/xWalkAgent/xWalkMedia/       sound and music Agent group
-xWalk-rpi5-hw/xWalkAgent/xWalkMedia/xWalkSoundBackgroundMusic/ sound and background music coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/       speech and conversational Agent group
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkLocalVoiceChatbot/ local voice-assistant loop
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkVoicePromptCar/ spoken movement demonstration
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkStorytellingRobot/ narrated movement sequence
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkVoiceControlledCar/ Vosk wake-word movement commands
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkTextVisionTalk/ image-grounded Ollama conversation
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkOnlineLlmTest/ OpenAI-compatible text conversation
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkVoiceActiveCar/ sensor-aware Rolly voice car
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkVoiceActiveCarGpt/ English GPT Buddy voice car
-xWalk-rpi5-hw/xWalkAgent/xWalkVoice/xWalkGptCar/ upstream GPT PiCar-X assistant
-xWalk-rpi5-hw/xWalkAgent/xWalkConnectivity/ external-control and transaction Agent group
-xWalk-rpi5-hw/xWalkAgent/xWalkConnectivity/xWalkAppControl/ mobile-app vehicle coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkConnectivity/xWalkSpiTransfer/ bounded SPI transaction coordination
-xWalk-rpi5-hw/xWalkAgent/xWalkPlatform/    process composition Agent group
-xWalk-rpi5-hw/xWalkAgent/xWalkPlatform/xWalkBoot/ host-stub and Raspberry Pi process composition
-xWalk-rpi5-hw/xWalkController/             standalone command-line aggregate that imports xWalkAgent
-xWalk-rpi5-hw/xWalkController/xWalkConfig/ layered controller deployment and calibration configuration
-xWalk-rpi5-hw/xWalkController/xWalkHandler/ typed handler implementation and direct host test
-xWalk-rpi5-hw/xWalkController/xWalkApp/     command parsing, entry points, generated help, and application tests
-xWalk-rpi5-hw/xWalkController/xWalkTest/xGoogleTest/ centralized CLI host-test runner and XML selection
-xWalk-rpi5-hw/xWalkController/xWalkTest/xSequenceTest/ bounded CLI command-sequence verification
+xWalk-rpi5-hw/xWalkDriver/                  application coordinators composed from caller-owned HAL objects
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/     movement and autonomous-response Agent group
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/xWalkPicarx/ complete PiCar-X movement and sensing coordinator
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/xWalkLineTracking/ bounded grayscale line following
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/xWalkMoveExample/ bounded movement example
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/xWalkKeyboardControl/ keyboard-driven movement coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/xWalkObstacleAvoidance/ ultrasonic movement decisions
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/xWalkCliffDetection/ grayscale cliff-response state machine
+xWalk-rpi5-hw/xWalkDriver/xWalkVehicle/xWalkSelfDrive/ preset gestures, sounds, and action flow
+xWalk-rpi5-hw/xWalkDriver/xWalkCalibration/ sensor, servo, and motor calibration Agent group
+xWalk-rpi5-hw/xWalkDriver/xWalkCalibration/xWalkGrayscaleCalibration/ grayscale reference calibration
+xWalk-rpi5-hw/xWalkDriver/xWalkCalibration/xWalkServoMotorCalibration/ servo and motor calibration
+xWalk-rpi5-hw/xWalkDriver/xWalkCalibration/xWalkServoZeroing/ ordered Robot HAT servo zeroing
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/      camera, detection, tracking, and video Agent group
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/xWalkComputerVision/ color, face, QR, and photograph coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/xWalkFaceTracking/ face-to-camera-servo coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/xWalkBullFight/ red-target pursuit coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/xWalkTreasureHunt/ color driving and spoken-prompt coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/xWalkVideoRecording/ continuous OpenCV AVI coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/xWalkVideoCar/ camera-assisted driving coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVision/xWalkCameraCapture/ camera-to-voice image callback adaptation
+xWalk-rpi5-hw/xWalkDriver/xWalkMedia/       sound and music Agent group
+xWalk-rpi5-hw/xWalkDriver/xWalkMedia/xWalkSoundBackgroundMusic/ sound and background music coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/       speech and conversational Agent group
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkLocalVoiceChatbot/ local voice-assistant loop
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkVoicePromptCar/ spoken movement demonstration
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkStorytellingRobot/ narrated movement sequence
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkVoiceControlledCar/ Vosk wake-word movement commands
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkTextVisionTalk/ image-grounded Ollama conversation
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkOnlineLlmTest/ OpenAI-compatible text conversation
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkVoiceActiveCar/ sensor-aware Rolly voice car
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkVoiceActiveCarGpt/ English GPT Buddy voice car
+xWalk-rpi5-hw/xWalkDriver/xWalkVoice/xWalkGptCar/ upstream GPT PiCar-X assistant
+xWalk-rpi5-hw/xWalkDriver/xWalkConnectivity/ external-control and transaction Agent group
+xWalk-rpi5-hw/xWalkDriver/xWalkConnectivity/xWalkAppControl/ mobile-app vehicle coordination
+xWalk-rpi5-hw/xWalkDriver/xWalkConnectivity/xWalkSpiTransfer/ bounded SPI transaction coordination
+xWalk-rpi5-hw/xWalkController/             four-core request scheduling and retained configuration
+xWalk-rpi5-hw/xWalkController/xWalkConfig/ layered deployment and calibration configuration
 xWalk-rpi5-hw/xWalkAudioResources/music/   packaged background-music resources
 xWalk-rpi5-hw/xWalkAudioResources/sounds/  packaged sound-effect resources
-xWalk-rpi5-iw/                     I2C and Controller Protobuf DTOs and gRPC interface definitions
+xWalk-rpi5-iw/                     I2C, lifecycle, and Controller Protobuf message definitions
 xWalk-rpi5-hw/xWalkLibrary/                common public headers, portable dependencies, models, and native assets
 xWalk-rpi5-hw/xWalkLibrary/common/         common interface target, headers, configuration, and documentation
 xWalk-rpi5-hw/CMakeLists.txt    product and HAL aggregate build
@@ -222,7 +285,7 @@ xWalk-rpi5-hw/xWalkHal/interface/xWalkWebSearch/ bounded loopback SearXNG retrie
 xWalk-rpi5-hw/xWalkHal/layer1/xWalkMusic/  music theory, PCM tone, and injected audio control
 xWalk-rpi5-hw/xWalkHal/layer1/xWalkRobot/  coordinated multi-servo robot control
 xWalk-rpi5-hw/xWalkHal/layer1/xWalkSpeaker/ bounded asynchronous audio-file playback control
-xWalk-rpi5-hw/xWalkTrace/                  filtered callback-based embedded diagnostics
+xWalk-rpi5-trace/           filtered callback-based embedded diagnostics
 xWalk-rpi5-hw/xWalkHal/device/xWalkUserButton/ active-low button events and press timing
 xWalk-rpi5-hw/xWalkHal/device/xWalkUltrasonic/ two-pin ultrasonic distance measurement
 xWalk-rpi5-hw/xWalkHal/interface/xWalkUtils/ injected platform utilities and bounded lazy caching
@@ -255,17 +318,6 @@ file to grow indefinitely. Follow the established suffixes:
   behavior group.
 - The same responsibility-based split for test files.
 
-Keep every xWalk Controller `XWALK_handler<CommandOrModuleName>` member in its
-own source file under the `xWalkHandler/src` functionality directory that owns
-the command: `vehicle`, `vision`, `voice`, `media`, `connectivity`,
-`calibration`, or `platform`. Keep shared cancellation support under `common`
-and lifecycle in the root `xWalkHandler/src` directory. Keep CLI-to-request
-parsing and shared Controller output formatting in `xWalkApp/parse/src`. Keep
-top-level and PiCar-X Controller command routing as documented free functions
-under `xWalkApp/activate/include` and `xWalkApp/activate/src`; grant only those application
-routers friend access rather than making protected handlers public. List every
-source explicitly in the `xWalkController` CMake target.
-
 Whenever files are added, update the module tree and responsibility table in
 its README.
 
@@ -285,7 +337,7 @@ Keep GitHub and Gerrit/Zuul Host Quality behavior aligned through
 `.github/workflows`, while Gerrit uses repository-controlled `.zuul.yaml` jobs
 and Ansible playbooks. Use `dependencies:` for Zuul execution ordering;
 `parent:` remains limited to job inheritance. Keep every CI job device-free and
-retain the controller's `--diagnose --no-hardware` validation.
+retain standalone Controller configuration generation and file validation.
 
 Keep HAL unit-test implementations in each owning module's existing `test/`
 tree. The central `xGoogleTest` target may compile those sources and adapt
@@ -352,10 +404,32 @@ module or runner, such as `Example`, `GoogleTest`, or `SequenceTest`. Keep
 generated copies under the same filename so runtime diagnostics and deployment
 instructions identify one stable configuration artifact.
 
-Keep generated Protobuf and gRPC sources under the owning module's `auto-gen`
-tree. Regenerate them from reviewed schemas, never edit them by hand, and
+Keep generated Protobuf sources under the owning consumer's `auto-gen`
+tree. The IW C++ bindings are consumer-owned: `xWalk-rpi5-node/xWalkIoT/auto-gen`
+and `xWalk-rpi5-hw/xWalkController/auto-gen` hold identical copies, and each
+consumer selects its copy with `XWALK_IW_GENERATED_DIRECTORY` before adding
+`xWalk-rpi5-iw`, which keeps only the schemas and the target recipe. Module-scoped IW CI fetches the submitted
+Controller and Node masters to validate their tracked bindings while an aggregate uplift is pending. Full
+integration CI continues to verify the exact pinned gitlinks. Regenerate bindings from reviewed schemas,
+never edit them by hand, and
 exclude them from handwritten-source coverage and static-analysis gates while
 retaining normal compiler warnings and compilation checks.
+
+The traffic controller likewise owns `xWalk-rpi5-node/xWalkTrafCtrl/auto-gen/include` and `auto-gen/src`.
+Its CMake build uses the IW-owned `cmake/XWalkTrafficProtocol.cmake` recipe to generate traffic,
+signal, common, and request bindings directly from IW schemas. Keep traffic schemas in IW;
+reuse `SoundReq` with `ANNOUNCE` for spoken traffic advisories instead of adding a parallel sound contract.
+
+Name each handwritten Protobuf message with at most two PascalCase operation
+words. Append `Req`, `Cfm`, or `Rej` to a transported flow message without
+counting that suffix as an operation word. Omit redundant `XWalk`, `Command`,
+`Request`, and `Payload` text. Give a supporting DTO a concise two-word name,
+such as `ClientAddr` or `MoveArg`. Keep enumeration, field, signal,
+and package names stable unless their owning contract is explicitly changed.
+
+Keep xWalk-rpi5-iw message-only: do not define RPC services or require a gRPC
+runtime or generator plugin. Generate C++ with `protoc` and link consumers
+through `xWalk::IW` to the Protobuf runtime.
 
 Define every xWalk-rpi5-iw request, confirmation, and rejection signal through the
 typed `XWalkSignalNumber` Protobuf enumeration. Name its values
@@ -369,6 +443,24 @@ request, confirmation, and rejection XML registries. Keep its
 `XWalkErrorSignalNumber` Protobuf selector values synchronized with the
 trace-owned C++ enumeration in `xHal_Rpi5CarErrorSignals.h`; these stable
 transport values must not depend on platform POSIX signal numbers.
+
+## Python tool composition
+
+Use `xWalk-rpi5-tool/py-agent/py-src/xWalkPyAgent` as the common composition root for Python developer, board,
+and Gerrit tooling. Create one application-owned `XWalkPyAgent` from a validated integrated-workspace or standalone
+tool root. Do not introduce a process-wide façade singleton.
+
+Access tools through lazy, cached façade properties. Constructing the façade or accessing a property must not run a
+command, load credentials, write a file, start a service, or open a network connection. Keep host-changing, Jira
+write, Gerrit lifecycle, and other mutating operations behind explicit methods.
+
+Pass command execution, environment snapshots, and clock operations through `XWalkPyAgentContext`. Tests inject
+deterministic implementations instead of contacting external services, changing the host, sleeping, or relying on
+the current process environment. Keep optional dependencies deferred until the owning tool is explicitly selected.
+
+During incremental migration, preserve existing executable paths, arguments, output contracts, and exit codes
+behind focused compatibility adapters. Tool implementations must not import or query `XWalkPyAgent`; dependency
+direction always runs from the façade to the selected tool.
 
 ## Files and naming
 
@@ -411,17 +503,7 @@ transport values must not depend on platform POSIX signal numbers.
   `xwalk::hal`. Do not add anonymous or module-local free production helpers.
   Class-specific behavior remains a method on its owning class. Test scenarios,
   test-only callbacks, and the required global `main()` stay with their tests.
-- Keep application entry functions that dispatch a configured `XWalkController`
-  and return its generated usage text under `xWalkApp`; these functions are the
-  Controller-specific exception to the reusable common-library free-function
-  rule and remain in `namespace xwalk::ctrl`. Because the Controller namespace
-  has the same short name as the global `ctrl` namespace
-  alias, qualify shared Controller primitive types as `::ctrl::*` inside it.
-- Keep process-argument and global-option parsing shared in
-  `xControllerApplicationArguments.cpp` for host and Raspberry Pi application
-  targets. Keep each other application command free function in its own
-  responsibility-focused file in the appropriate `xWalkApp` group.
-  Never place a function call, member-function call, callback invocation, or
+- Never place a function call, member-function call, callback invocation, or
   function-like macro invocation directly in an `if` or `while` condition.
   Evaluate the complete decision expression first and assign its result to a
   clearly named Boolean variable before entering the control-flow statement.
@@ -433,9 +515,6 @@ transport values must not depend on platform POSIX signal numbers.
   `boolean` alias and an explicit `== false` failure check where applicable.
   Validate the complete project-owned source tree with
   `python3 xWalk-rpi5-tool/py-agent/dev-tool/xWalkConditionCheck xWalk-rpi5-hw`.
-  Host `main()` delegates to the shared host application function. Raspberry Pi
-  `main()` consumes the same parsed argument structure and retains only signal
-  setup, resource validation, boot selection, and hardware composition.
 - Put reusable filesystem operations in
   `xWalk-rpi5-hw/xWalkLibrary/common/xHal_Rpi5CarFileFunctions.h`. Production modules and
   tests call these functions directly through `xwalk::hal`, matching project
@@ -560,9 +639,11 @@ transport values must not depend on platform POSIX signal numbers.
 
 ## Headers and dependencies
 
-- Include a source file's matching public header first.
-- Add a blank line before additional project headers when they form a separate
-  dependency group.
+- Keep every adjacent C++ include block contiguous, without blank lines between
+  project, standard-library, platform, or dependency headers.
+- Sort each include block by the character length of the included header path,
+  shortest first. Sort equal-length paths alphabetically. Apply the same order
+  to the matching public header instead of reserving a first-header exception.
 - Include project headers by their public basename, for example
   `#include "xHal_Rpi5CarPwm.h"`; let CMake provide include directories.
 - Keep standard-library headers centralized in
@@ -570,8 +651,8 @@ transport values must not depend on platform POSIX signal numbers.
   normally does not add direct standard-library includes.
 - Directly include a standard header in a translation unit when that header is
   required to complete an implementation-only type and relying on a transitive
-  include produces an incomplete-type diagnostic. Keep the matching project
-  header first, then add a separate standard-header group. For example, a file
+  include produces an incomplete-type diagnostic. Place the required standard
+  header in the same length-ordered include block. For example, a file
   that instantiates `std::ifstream` or `std::ofstream` includes `<fstream>`;
   `<iosfwd>` and the stream declarations exposed by `<filesystem>` are not
   complete definitions.
@@ -595,6 +676,17 @@ transport values must not depend on platform POSIX signal numbers.
 - Treat the configured CMake build as the authoritative C++ result. IntelliSense
   diagnostics are editor assistance and do not replace compilation with the
   project's warning flags.
+- Prioritize the aggregate `build-host/cmake/compile_commands.json` over older
+  component databases. Keep parent, hardware-folder, and Controller-folder editor
+  configurations consistent. Use **xWalk: Refresh all C++ navigation** to regenerate
+  the host, native-provider and Node databases. The separate `build-host/rpi5-navigation`
+  database parses native providers, examples and hardware tests using the host
+  compiler; it is not an ARM64 build and its binaries must not be run as host tests.
+- Keep `browse.path` limited to live source/header directories using non-recursive
+  `/*` entries. Do not recursively index the workspace root or staged build copies.
+  Keep each opened workspace folder on its own browse database to avoid conflicting
+  indexes. Include `.cpp` directories so declaration-to-definition navigation finds
+  implementations, not only public headers. Use the semantic IntelliSense engine.
 - When adding or renaming a module, add its public and test include directories
   to `../.vscode/c_cpp_properties.json`. Update both `includePath` and `browse.path`
   in the same change.
@@ -692,16 +784,6 @@ transport values must not depend on platform POSIX signal numbers.
   Production uses `XWalkSpiDeviceLinux`; host tests and the safe standalone
   simulation inject `XWalkSpiHostStub` so the real Linux configuration and
   request-building logic executes without opening `/dev/spidev*`.
-- Compose the CLI SPI command through its dedicated SPI-only boot mode. It must
-  not detect or reset the Robot HAT, claim GPIO, construct actuators, or start
-  audio, camera, speech, or model services.
-- Compose the CLI Doctor command through a dedicated bounded preflight mode. It
-  may validate the configured GPIO chip, pulse only `hardware_mcu_reset_pin`
-  low for 10 ms and then high, wait `hardware_mcu_reset_settle_ms`, open
-  configured device descriptors, inspect metadata, read firmware, and sample
-  battery ADC A4. It must not construct or move actuators, transfer SPI data,
-  enable audio, capture media, or contact a model endpoint. Its safety result
-  must disclose the MCU reset GPIO activation.
 - GPIO interrupt application contexts are non-owning. They must outlive the
   registration, and handlers invoked by a backend worker must not throw or block
   indefinitely. Cancel the registration before destroying the handler context.
@@ -722,19 +804,21 @@ transport values must not depend on platform POSIX signal numbers.
   destructors invoke their safe-stop operation without releasing dependencies.
   Route these attempts through explicit Boolean I2C and PWM status operations;
   do not intercept exceptions to implement fail-safe cleanup.
-- Bound final PiCar-X motor PWM magnitude through the deployment key
-  `picarx_max_motor_output_percent`, using 20 percent by default for first-run
-  safety. Apply the bound after compatibility scaling and calibration. Do not
-  permit a limit above 20 percent until the calibration workflow persists
-  `picarx_calibration_verified = true` after raised-wheel motor-direction,
-  steering-center, and motor-balance checks.
+- Interpret PiCar-X motor commands as direct power percentages from zero through one hundred,
+  without the upstream non-zero 50-percent boost. Apply motor-balance calibration and steering
+  compensation, then the configurable `picarx_max_motor_output_percent` ceiling (default 100).
+  `picarx_calibration_verified` records commissioning status without changing the power ceiling.
+  Preserve watchdog expiry, emergency stopping, finite-value checks, and explicit actuator initialization.
+- Remote Treasure Hunt owns a bounded speech worker for its session. Only that worker calls the
+  borrowed TTS backend while the foreground owns movement and camera detection. Keep one latest
+  pending prompt, share provider cancellation, and join before releasing the operation lease.
+  Forward worker diagnostics into the original operation result after joining; never log speech text.
 - Persist signed motor balance through `picarx_motor_speed_calibration` in the
   range -100 through 100 percentage points. Positive values reduce the left
   side and negative values reduce the right side. Persist confirmed stationary
   grayscale and cliff samples through `line_reference` and `cliff_reference`.
 - Latch PiCar-X emergency stop before attempting safe shutdown. Suppress later
-  motor and servo commands until the application explicitly starts a fresh
-  operation, and arm one `XWalkPicarxSafetyGuard` for every non-SPI CLI command.
+  motor and servo commands until an owning application explicitly starts a fresh operation.
 - Keep persistent motor role and reversal configuration outside the motor
   objects. Pass configuration values into `XWalkMotors`, and let
   `XWalkConfigStore` own filesystem access when persistence is required.
@@ -915,8 +999,22 @@ transport values must not depend on platform POSIX signal numbers.
   releasing the file lock.
 - Use `RPI.<digits>` UIDs with HAL macros, `CTRL.<digits>` UIDs with Controller
   macros, `RPIAGENT.<digits>` UIDs with Agent macros, and `LIB.<digits>` UIDs
-  with Library macros. Source files below `xWalkHal`, `xWalkController`,
-  `xWalkAgent`, and `xWalkLibrary` must use their owning macro family. The
+  with Library macros. Node sources use `XWALK_MQTT_TRACE_UIDn` with
+  `MQTTUL.<digits>` for clients and `MQTTDL.<digits>` for servers. Their
+  warning and error macros are `XWALK_MQTT_WARNING` and `XWALK_MQTT_ERROR`.
+  OS desktop sources use `XWALK_OS_TRACE_UID0` with scanner-registered `OS.<digits>` IDs and
+  `XWALK_OS_WARNING` / `XWALK_OS_ERROR`. Host/Pi link the shared trace implementation.
+  The Qt OS adapter and its tests live in `xWalk-rpi5-trace`; other trace consumers do not require Qt.
+  The dependency-free standalone OS profile uses a file-only test stub in `xWalkStub` with the same IDs,
+  fixed content-free messages and unfiltered warnings/errors; it persists simple selectors in JSON.
+  Neither backend changes CLI protocol stdout, application error behavior, or GUI error-window filtering.
+  Traffic announcements below `xWalk-rpi5-node/xWalkTrafCtrl` use `XWALK_TRAFCTRL_TRACE_UIDn`
+  with `TRAFCTRL.<digits>`, `XWALK_TRAFCTRL_WARNING`, and `XWALK_TRAFCTRL_ERROR`. Only the explicit
+  print-only announcement output logs generated announcement text; shared LLM diagnostics remain content-free.
+  The functional request handlers below `xWalk-rpi5-node/xWalkIoT/xWalkAgent` instead use
+  `XWALK_XAGENT_TRACE_UIDn` with `XAGENT.<digits>`, `XWALK_XAGENT_WARNING`, and `XWALK_XAGENT_ERROR`,
+  preserving the existing selector contract and unfiltered behavior. Source files below `xWalkHal`, `xWalkController`,
+  `xWalkDriver`, and `xWalkLibrary` must use their owning macro family. The
   numeric value must be unique within its tag across the complete repository
   regardless of module, submodule, or priority. IDs `RPI.001`, `CTRL.001`,
   `RPIAGENT.001`, and `LIB.001` are valid together because their tags differ;
@@ -934,13 +1032,10 @@ transport values must not depend on platform POSIX signal numbers.
   selector-tagged `WARNING` macro, errors use the selector-tagged `ERROR`
   macro, and `ASSERT` is reserved for genuine invariant failures. Do not
   use direct standard streams, C printing, platform logging, local diagnostic
-  macros, or callback-based console printing for diagnostics. Functional CLI
+  macros, or callback-based console printing for diagnostics. Functional application
   and protocol output remains separate at application and Agent interaction
   boundaries: preserve help, version text, protocol responses, and conversation
   output when trace decoration would change their interface contract.
-  `xWalk-rpi5-hw/xWalkController/xWalkHandler` is trace-only for its own status, result,
-  warning, and failure records; it must not call its output callback for those
-  records.
 - Keep `XWALK_VERBOSE(format, ...)` only as a disabled no-op for source
   compatibility. Normal diagnostics use one scanner-registered UID macro so
   their formatting arguments are not evaluated while disabled.
@@ -948,7 +1043,7 @@ transport values must not depend on platform POSIX signal numbers.
   `steady_clock` initialization point with microseconds. Do not describe one
   trace call as an operation-duration measurement.
 - Run the class-based
-  `xWalk-rpi5-hw/xWalkTrace/pre-compiler/xHal_Rpi5CarTracePreCompiler.py` before trace
+  `xWalk-rpi5-trace/pre-compiler/xHal_Rpi5CarTracePreCompiler.py` before trace
   compilation. Its
   token-aware scan covers the complete project root, including generated
   project sources and participating nested repositories, rejects every
@@ -1453,8 +1548,7 @@ meaning rather than the order of evaluation. Do not use names such as `temp`,
   it creates a different type and function identity in every translation unit.
   Component nesting also prevents helper-name collisions in aggregate test
   runners. List the support source explicitly in standalone and aggregate test
-  targets. Apply this layout across `xWalkHal`, `xWalkAgent`, and
-  `xWalkController` whenever a test is added or modified.
+  targets. Apply this layout across `xWalkHal` and `xWalkDriver` whenever a test is added or modified.
 - Test public results and observable bus traffic, including register selection,
   byte order, state shared between channels, and validation failures.
 - Add a selector in the test main and a separately named CTest entry when adding
@@ -1479,6 +1573,15 @@ meaning rather than the order of evaluation. Do not use names such as `temp`,
 - In the aggregate RPI build directory, run plain `ctest` only on the connected
   target after the hardware setup has passed its safety review. This executes
   every registered hardware test.
+
+## Dependency setup entry point
+
+Use the integration-root `setup.sh` with sudo for native package installation. It selects host or Pi
+from the local board, accepts an explicit `--target`, and installs missing packages one at a time.
+Keep package selection, OS and camera validation, and installed-package verification in
+`xWalk-rpi5-tool/shell-agent/deploy-tool/install-dependencies-common.sh` using `apt-packages.txt`.
+The full `install.sh` delegates package installation to `setup.sh` and owns source/build/boot preparation.
+The component launchers remain compatible entry points for standalone tooling users.
 
 ## CMake conventions
 
@@ -1520,236 +1623,86 @@ meaning rather than the order of evaluation. Do not use names such as `temp`,
 - Grant device permissions through standard operating-system groups and exact
   configured I2C, GPIO, and SPI node matches. Do not add broad device wildcards.
 
-## Command-line application conventions
+## Controller interface conventions
 
-- Keep the standalone `xWalkController` aggregate beside `xWalkAgent` and `xWalkHal`.
-  Keep its reusable controller contract, implementation, and direct in-memory
-  test under `xWalkHandler`. Keep host entry behavior in `xWalkApp/cli/host`, Raspberry
-  Pi entry behavior in `xWalkApp/cli/hardware`, command parsing in `xWalkApp/parse`, boot
-  composition in `xWalkApp/boot`, command activation in `xWalkApp/activate`, and
-  executable-level application tests in `xWalkApp/test`. Keep executable targets
-  and CTest registration in `xWalkApp/CMakeLists.txt`. Do not place these directories
-  inside `xWalkAgent`.
-- Give `xWalkApp` one host GoogleTest executable with the `XWalkAppGroup`
-  suite. Resolve the sibling host CLI relative to `/proc/self/exe`, launch
-  each scenario in an isolated child process, and register the complete
-  executable once with CTest. Keep physical hardware unavailable in these
-  application tests.
-- Keep the one tracked controller deployment file at
-  `xWalk-rpi5-hw/xWalkController/xWalkConfig/picar-x.conf`. Select Robot HAT revisions through
-  its `hardware_board` value; do not maintain separate board-profile files.
-- Keep CLI-owned unit tests under `xWalk-rpi5-hw/xWalkController/xWalkTest/xGoogleTest`. Let
-  that directory own the `xCliGoogleTest` process entry point so it can coexist
-  with the HAL `xGoogleTest` target. Compile assertion-based unit-test entry
-  points with distinct renamed functions, isolate them in child processes, and
-  select tests through the complete strict XML inventory owned by the unit-test
-  directory. Name each GoogleTest suite after its owning Controller or Agent
-  functional group. Build and register this runner only in CLI host mode.
-- Keep bounded multi-command CLI verification under
-  `xWalk-rpi5-hw/xWalkController/xWalkTest/xSequenceTest`. Let that directory own the
-  independent `xCliSequenceTest` process entry point and GoogleTest sequence
-  registration plus complete host and disabled-hardware XML inventories. Name
-  sequence suites after their owning Controller or Agent functional group and
-  load enabled suites and cases from the sequence directory's strict XML.
-  Validate the complete command list before execution, accept no more than 32
-  non-empty commands, retain one caller-owned controller through a non-owning
-  pointer, and stop at the first non-zero command status. Do not add a physical
-  CLI sequence until its command flow, runtime bound, hardware composition, and
-  safety conditions are reviewed.
-- Let `xWalkController` import the sibling `xWalkAgent` aggregate. Agent owns
-  `xWalkPicarx`, `xWalkLineTracking`, `xWalkSelfDrive`, and `xWalkBoot`; Controller links
-  those targets without duplicating their source directories.
-- Keep `XWALK_CLI_BUILD_HOST` and `XWALK_CLI_BUILD_RPI` mutually exclusive and
-  `OFF` by default. Map them to the Controller test options and use separate
-  `build-host` and `build-rpi` directories. Label the RPI test `hardware` and
-  do not execute it on Ubuntu.
-- Use `xwalk-picarx-control <command> [options]` as the stable command shape.
-- Accept named options as `--name value`, `--name=value`, or `name=value`.
-  Accept one flat JSON object through `--config FILE.json`; direct options take
-  precedence over JSON values.
-- Keep JSON parsing bounded to scalar configuration. Reject nested arrays and
-  objects rather than silently ignoring unsupported configuration.
-- Execute a command only when the CLI owns a complete safe composition. Return
-  a distinct backend-unavailable status for optional services such as audio.
-- Route every non-help production Controller command through
-  `xWalkController/xWalkScheduler`. Use separate stable Controller, Agent, and
-  HAL mailbox IDs, create one scheduler child per registered mailbox, and keep
-  same-mailbox requests sequential while allowing separate mailboxes to run in
-  parallel. A `cxx_xWalk*Send_LPP` name identifies its destination module.
-  Keep the native scheduler signal, module interfaces, and tests independent of
-  Protobuf, gRPC, and server code; a future server is only a transport adapter.
-  Keep direct Controller command-runner calls limited to scheduler child
-  adapters and focused in-memory tests; application entry points must not invoke
-  a handler or xWalkBoot directly.
-- Fork the scheduler child before constructing xWalkBoot, Agent, HAL, listener,
-  camera, GPIO, I2C, SPI, audio, or motor resources. Open and release those
-  resources in the owning child. Use fixed-size pointer-free `SOCK_SEQPACKET`
-  messages, fixed-capacity FIFO and status tables, tracked positive PIDs,
-  bounded graceful shutdown, exact-PID `SIGTERM`, and `waitpid()` reaping. Do
-  not add a thread-based Controller handler dispatcher or process-name killing.
-- Enter RPI backend composition through one automatic `XWalkBootRpi` object.
-  Pass one `xAgentContext` to every Boot `run*` interface, invoke its application
-  callback at most once, consume a failed run attempt, and retain the stack-owned
-  backend graph until command completion. Return help before constructing the
-  boot object so discovery claims no platform resource.
-- Construct `XWalkPicarx` from one `xAgentContext`. Populate `config`, `motors`,
-  `dirServo`, `panServo`, `tiltServo`, `grayscale`, and `ultrasonic`; each field
-  is required and non-owning, and every referenced object must outlive the
-  coordinator.
-- Boot every backend required by the selected command exactly once. Do not
-  initialize HAL backends that lack a CLI command or explicit deployment
-  configuration, including microphone, recognizer, synthesizer, model endpoint,
-  and unrelated GPIO roles.
-- Load deployment configuration before opening hardware. Pass configured I2C,
-  GPIO, and Device Tree paths into their Linux owners. Never select the first
-  `/dev/gpiochip*`; verify optional exact chip identity and fail before MCU
-  reset when automatic board detection cannot establish a supported mapping.
-- Provide explicit Robot HAT v4 and v5 deployment profiles. Automatic and v5
-  selection require the supported v5 UUID; v4 selection must be explicit and
-  must reject a detected v5 overlay. Provision one GPIO path, kernel chip name,
-  and label before actuator boot, then retain runtime validation before reset.
-- Select camera deployment through configuration. Use `csi` for a Raspberry Pi
-  Camera Serial Interface device and `usb` for a V4L2 webcam. Keep capture
-  executables and device paths outside the Agent, invoke providers without a
-  shell, and enforce the HAL capture deadline in the parent process.
-- Keep the default Camera simulation device-free. Compose `XWalkCamera` with a
-  named in-memory capture callback and validate the destination and bounded
-  settings without opening a camera, starting a process, or creating an image
-  file. Persist trace-selector changes in generated XML for the next run.
-- Keep host command parsing independent of Linux hardware headers. Inject
-  console, timing, cancellation, and audio callbacks into `XWalkController`.
-  Store the
-  caller-owned PiCar-X coordinator and callback context as non-owning pointers.
-- Use one process cancellation query for every moving CLI command. Poll it in
-  delay slices no longer than 20 milliseconds for move, turn, and self-drive,
-  latch emergency stop on cancellation, and install SIGINT and SIGTERM handlers
-  before any non-help Raspberry Pi command boots hardware.
-- Add command-specific Agent services through constructor-reference overloads.
-  Store their addresses as nullable non-owning pointers, report status three
-  when a command is invoked without its service, and compose only the service
-  selected by the process command.
-- Keep `line-track` limited to `start` and `stop`. Run `start` in the foreground
-  by repeatedly calling the bounded line-tracking step while the injected
-  cancellation query permits it, report each returned grayscale sample and
-  classified state, and finish with the upstream 100-millisecond delay after
-  stopping the motors. Let the RPI application map SIGINT and SIGTERM to that
-  cancellation query.
-- Keep `computer-vision` independent of the PiCar-X actuator graph. Compose only
-  the configured camera and OpenCV provider, retain source-compatible keys and
-  500-millisecond post-key timing, and never start an implicit web listener.
-  Store photographs only under the configured local directory and keep physical
-  camera execution outside ordinary host verification.
-- Keep `stare-at-you` on the base PiCar-X graph plus the configured OpenCV
-  provider. Preserve the upstream frame-relative correction formula, clamp
-  retained pan and tilt commands to 35 degrees, and stop both the provider and
-  motors on every foreground exit. Keep physical camera and servo execution
-  outside ordinary host verification.
-- Keep `bull-fight` on the base PiCar-X graph plus configured OpenCV red
-  detection. Preserve the upstream camera correction, 35-degree camera bounds,
-  direct pan-angle steering call, 50-percent requested speed, and 50 ms sample
-  delay. Apply the normal calibration output cap and require explicit hardware
-  test approval because successful observations move the vehicle.
-- Keep `record-video` camera-only. Run continuous capture in the provider so
-  blocking terminal input does not interrupt frame acquisition, preserve the
-  upstream start/pause/continue/stop transitions and delays, and keep output
-  under the configured local directory. Never run physical recording in host
-  verification.
-- Keep `app-control` on the base PiCar-X graph with injected transport, camera,
-  and sound providers. Preserve the SunFounder A-Q widget mapping, bind the
-  WebSocket listener only to the explicitly configured address and port, bound
-  messages and line-loss recovery, and never start an implicit video server.
-  Default to loopback and require an explicit deployment change for LAN access.
-- Keep `sound-background-music` on the shared `XWalkMusic` abstraction and
-  explicitly configured sound/music directories. Preserve the upstream Space
-  synchronous horn, `c` background horn, `q` music toggle, 20-percent music
-  volume, and 50 ms post-horn delay. Stop active music on every foreground exit
-  and never open a physical audio endpoint in host verification.
-- Keep `voice-prompt-car` in its standalone Agent with caller-owned PiCar-X and
-  text-to-speech services. Preserve the source greeting, prompt order, 30-percent
-  requested speed, two-second movement duration, and minus/plus 20-degree turns.
-  Stop the motors and centre steering on every exit, and require explicit
-  approval before physical speech or movement testing.
-- Keep `storytelling-robot` in its standalone Agent with caller-owned PiCar-X
-  and text-to-speech services. Preserve the Piper `en_US-amy-low` default,
-  source narration order, two three-second forward legs, six-second backward
-  leg, and 30-percent requested speed. Slice movement delays for cancellation,
-  stop and centre on every exit, and keep Piper process execution in the HAL
-  provider rather than the portable Agent.
-- Keep `text-vision-talk` in its standalone camera-and-language-model Agent.
-  Preserve the source instructions, welcome, 20-message history, two-second
-  warm-up, 1280-by-720 capture, `/tmp/llm-img.jpg` replacement, and normalized
-  `exit` or `quit` termination. Keep Ollama transport and physical camera
-  ownership in the optional Raspberry Pi boot composition.
-- Keep `online-llm-test` in its standalone language-model Agent. Preserve the
-  source instructions, welcome, 20-message history, `gpt-4o` default, and
-  externally cancelled text-only prompt loop. Read the credential only from
-  `OPENAI_API_KEY`; never place it in arguments, configuration, or diagnostics.
-- Keep `servo-zeroing` in its standalone callback-driven Agent. Preserve MCU
-  reset, channels zero through eleven in ascending order, the 10-degree and
-  zero-degree commands with 100 ms delays, and the cancellable idle loop.
-  Physical verification requires explicit Robot HAT safety confirmation.
-- Keep `voice-active-car-gpt` as the example-21 Jarvis profile over the shared
-  sensor/action coordinator. Preserve the ten-centimetre trigger, `hey jarvis`
-  wake phrase, Jarvis wake acknowledgement, filtered action instructions,
-  Gemini `gemini-3.6-flash`, and Piper `en_GB-alan-medium`. Read the Gemini
-  credential only from `GEMINI_API_KEY`. Keep this profile permanently text-only:
-  do not read camera configuration, construct camera services, install an image
-  callback, or attach an image path. Preserve concise 256-token spoken responses
-  and a bounded continuous session with configured idle, round, miss, and
-  sleep-phrase exits. Sleep phrases must bypass the model and action parser;
-  every session-ending path must stop vehicle output.
-- Keep `voice-active-car` as the canonical `voice_active_car.py` Rolly profile
-  over the shared sensor/action coordinator. Preserve the ten-centimetre
-  trigger, image input, `hey rolly` wake phrase, `Hi there` wake response,
-  English recognition setting, full assistant instructions, and OpenAI
-  `gpt-4o-mini`. Read credentials only from `OPENAI_API_KEY`, and require the
-  wake phrase before every ordinary model round.
-- Keep `gpt-car` as the `gpt_examples/gpt_car.py` profile over the shared
-  voice-car and SelfDrive coordinators. Preserve voice and keyboard input,
-  optional image attachment, the JSON `actions` and `answer` response contract,
-  all preset gestures and sound effects, and environment-only OpenAI credentials.
-- Execute `self-drive <action>` synchronously through one caller-owned
-  `XWalkSelfDrive`. Publish every action with a canonical hyphenated CLI name,
-  normalize hyphens to the Agent's exact spaced action name, and continue to
-  accept separate action words for compatibility. Let the Agent validate the
-  complete upstream action name before changing hardware.
-- Build the `xWalkBootRpi` composition root only for RPI mode. Enable the
-  Linux I2C and GPIO backend targets through the PiCar-X hardware dependency.
-- Never claim GPIO lines, move actuators, enable powered outputs, start audio,
-  or contact an external service merely to discover a command or report status.
-- Construct project objects in `XWalkBootRpi::run()`, progressively populate
-  the non-owning dependency pointers in a copied `xAgentContext`, and preserve
-  the same ownership and lifetime rules as any other application composition
-  root. Each `run*` stage requires only its documented context fields.
-  Command-specific optional graphs may remain in their selected branch but must
-  outlive the command invocation.
-- Keep Agent modules physically nested under the documented functional group
-  directory matching their primary responsibility. Each group owns only its
-  source-tree organization and interface target; it must not merge coordinators,
-  rename child targets or public headers, or weaken module test boundaries. Keep
-  `xWalk::Agent` as the complete aggregate and allow focused consumers to link
-  the documented group aliases. Give every group one GoogleTest host executable
-  with one named case per child module and link it only through the group
-  interface target. Reuse deterministic child tests in isolated processes and
-  test public behavior directly where no child test exists. Resolve child test
-  executables relative to `/proc/self/exe`; do not expose their build paths as
-  C++ preprocessor identifiers. Label these tests `host;agent-group`. Give every
-  group matching GoogleTest Raspberry Pi
-  build-profile cases under `test/hardware` and label the executable
-  `hardware;agent-group`. Keep physical device behavior in the owning child
-  hardware tests and never execute it without the required safety approval.
-  Give the root Agent aggregate one GoogleTest case per functional group. Run
-  each group executable in an isolated process, label the host aggregate
-  `host;agent;agent-aggregate`, and provide a matching opt-in hardware aggregate
-  labelled `hardware;agent;agent-aggregate`.
+- Controller-specific implementation style follows the MQTT module's C-style function bodies: C headers and
+  library calls, explicit local types, C-style casts, `NULL`, pthread entry functions and return-value errors.
+  This is an explicit exception to the general cast/null spelling rules above. Retain existing class inheritance,
+  public reference signatures, non-throwing callback contracts and valid class construction/destruction for Node
+  compatibility. Do not replace constructed class storage with raw `malloc` bytes. Generated terminal copies
+  use `static_cast` for scalar, enum, and void-pointer conversions and `reinterpret_cast` for byte views,
+  keeping the generated Protobuf adapter clean under `-Wold-style-cast`.
+
+
+- `xWalkController` owns the transport-neutral Node-to-Driver scheduling boundary and retains configuration in
+  `xWalkConfig`. Do not restore the retired command-line application or Driver-owned process composition.
+- Controller groups are `xWalkInit`, `xWalkRequest`, `xWalkCfm` and `xWalkReject`, each with `include` and `src`. Keep existing
+  class declarations, constructors, destructors and shared functions in `xWalkInit`; keep typed request dispatch in
+  `xWalkRequest` and typed completion methods in `xWalkCfm`/`xWalkReject`. Do not introduce separate completion classes.
+  Typed production completions return the injected Node encoder/publisher result; never report an unsent
+  CFM or REJ as delivered. The module build uses separate standalone stubs and always reports responses unsent.
+- `XWalkController` owns four `XWalkCore` subclasses: service/core 0, vehicle/core 1, vision/core 2 and voice/core 3.
+  Pin these workers to four distinct allowed Linux CPUs; fail startup rather than silently sharing fewer CPUs.
+- Capture Boot background-worker placement on the lifecycle owner before workers start. Pin operation workers
+  by request role, camera streaming to vision/core 2, and announcement playback, replay timing and asynchronous
+  prompts to voice/core 3. Never derive their CPU map from an already-pinned caller. Preserve device leases;
+  affinity does not permit otherwise unsafe concurrent hardware access.
+- Each worker owns an eight-entry FIFO, excluding its one active request. Route existing generated request
+  signals to exact shared structures. The public boundary passes a signal, borrowed `const void*`, and `sizeof`
+  the matching structure, not serialized GPB bytes. Deep-copy present nested string and binary views before
+  returning from enqueue; bound combined view data to 65,536 bytes per request.
+- Reject invalid inputs without queueing. On FIFO overflow, reject the incoming request with its original
+  identity and correlation, invoke the synchronous rejection callback, log the central Controller assertion,
+  and terminate with `abort()` in every build mode. Never overwrite an older queued request.
+- Keep callbacks outside FIFO locks. Callbacks and contexts are non-owning, thread-safe, non-throwing, bounded
+  and alive until shutdown joins all workers. Lifecycle calls belong to one owner thread, never a worker callback.
+- Stop rejects new work, drains accepted requests and joins the workers while Node MQTT remains connected.
+  Production handlers forward to Boot's operation adapter; a scheduled request is not a hardware completion.
+- Node's `XWalkControllerResponse` encodes central Controller warning/error callbacks as existing IW GPB
+  rejections. Typed requests use their matching REJ signal and original client correlation; unaddressed lifecycle
+  or unsafe input uses `TraceRej` on the status topic. Keep Protobuf/MQTT dependencies in Node, not Controller.
+- Scope diagnostic forwarding per thread and operation through `XWalkTraceScope` in the trace module. Deliver
+  outside trace/FIFO locks, suppress recursive transport diagnostics, and finish the QoS 1 publish attempt before
+  fatal overflow aborts. Never claim delivery when transport fails or fabricate a client address.
+- Node functional publishers must release transport locks while polling QoS acknowledgement completion.
+  Fence completion by connection epoch across reconnects. Keep Paho API calls serialized and RX polling
+  nonblocking. Preserve synchronous delivery for RX-callback publications that cannot await their own pump;
+  do not move ordinary Controller completion callbacks onto the MQTT receive thread.
+- Typed Node subscribers own eight fresh-exec transport children: request and response processes for each
+  functional core. Pin each pair to its owning CPU, require distinct MQTT client IDs, and retain all hardware
+  ownership and Controller dispatch in the parent. Use private bounded SOCK_SEQPACKET frames with exact lengths
+  and sequence validation; never transfer pointers or hardware handles. Preserve synchronous actual-delivery
+  results across response IPC. Keep eight outstanding request credits, fail safely on IPC/child failure, and
+  drain hardware with response children alive before reaping. Do not fork a live hardware/provider graph or
+  automatically restart actuator state. The transport-only module and one-shot publishers retain their modes.
+- Driver integration must arbitrate shared movement, camera and audio resources across functional workers;
+  CPU affinity alone provides no hardware resource isolation. Keep all current Controller tests hardware-free.
+
+- Full standalone `xwalk-ctrl run` owns Boot directly for HOST simulation or RPI5 device execution, without MQTT.
+  Node still owns Boot in its own process. Keep `json`/FIFO verification hardware-free and module builds stub-only.
+  Interactive standalone sessions preserve Boot across commands, wait for real CFM/REJ and released execution
+  leases, and cancel/join before releasing providers on timeout, interruption, EOF or quit.
+
+- Boot's cancellable vehicle operation worker holds one exclusive shared-device lease across movement, modes,
+  camera control and sensing. Announcements and periodic replay use a separate single-admission speech worker,
+  copied request, Piper provider and cancellation latch. They never borrow or reset vehicle cancellation and
+  do not close background video. Use a mixing default audio route when mode prompts overlap announcements.
+  Health, Version, Help and Doctor metadata execute on the service queue without taking the device lease or
+  changing cancellation. A repeated background video START may acknowledge an already-running stream on
+  the vision worker without reacquiring its device. New stream acquisition still requires the device lease.
+  Movement release and same-mode STOP preserve speech; global lifecycle STOP and owner shutdown cancel both
+  workers and join speech before final completion. Ordinary competing device operations still reject.
+  Driver and encoder exceptions stay inside adapter boundaries. Cleanup precedes stop confirmation; backend
+  calls must have bounded return times for timely cooperative cancellation. The `module` build selects
+  standalone stubs and omits the Boot execution runtime.
 
 ## Agent conventions
 
-- Keep `xWalkAgent` beside `xWalkHal`. Normal Agent modules coordinate caller-owned
+- Keep `xWalkDriver` beside `xWalkHal`. Normal Agent modules coordinate caller-owned
   HAL objects and must not duplicate physical I/O backends or own injected
-  project dependencies. `xWalkBoot` is the intentional composition-boundary
-  exception: its optional RPi target owns platform backends only for one
-  synchronous application callback, while its core target remains device-free.
+  project dependencies. The former Platform composition layer is deleted. Add
+  future process composition only at a separately reviewed Controller activity
+  boundary; do not restore a Driver-owned compatibility root.
 - Name agent public headers and sources `xAgent_Rpi5Car<Component>.h` and
   `xAgent_Rpi5Car<Component>.cpp`. Put production declarations in
   `namespace xwalk::agent` while retaining project scalar and container types
@@ -1757,13 +1710,12 @@ meaning rather than the order of evaluation. Do not use names such as `temp`,
 - Give every agent submodule independent host and hardware test options. The
   aggregate `XWALK_AGENT_BUILD_HOST` and `XWALK_AGENT_BUILD_RPI` options must be
   mutually exclusive and default to `OFF`.
-- Keep MCU reset and other temporary hardware claims in `xWalkBootRpi`
-  root when a later dependency must claim the same physical resource. Destroy
-  the temporary backend before constructing the long-lived dependency.
-- Keep CLI parsing and sequencing hardware-independent. Inject console, delay,
-  audio, and other platform operations, and bind Linux hardware only in the
-  optional `xWalkBootRpi` composition target. Application `main()` selects a
-  boot mode and consumes non-owning services during the boot callback.
+- Keep MCU reset and other temporary hardware claims in the reviewed application
+  composition root when a later dependency must claim the same physical
+  resource. Destroy the temporary backend before constructing the long-lived
+  dependency.
+- Keep Agent APIs independent of any future application parser or dispatcher. Inject delay, audio, and other
+  platform operations, and bind Linux hardware only at a reviewed application composition boundary.
 - Keep `XWalkSelfDrive` limited to named gesture, movement, sound, status, and
   queue behavior. Inject `XWalkPicarx`,
   `XWalkMusic`, and timing; the coordinator must not create hardware, audio,
@@ -1811,13 +1763,12 @@ For a new implementation or a changed public behavior:
 Typical host verification commands are:
 
 ```bash
-cmake -S xWalkController -B xWalk-rpi5-hw/xWalkController/build-host -DXWALK_CLI_BUILD_HOST=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build xWalk-rpi5-hw/xWalkController/build-host --parallel
-ctest --test-dir xWalk-rpi5-hw/xWalkController/build-host --output-on-failure
+cmake -S xWalk-rpi5-hw/xWalkController -B build-controller-config
+cmake --build build-controller-config
 
-cmake -S xWalkAgent -B xWalk-rpi5-hw/xWalkAgent/build-host -DXWALK_AGENT_BUILD_HOST=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build xWalk-rpi5-hw/xWalkAgent/build-host --parallel
-ctest --test-dir xWalk-rpi5-hw/xWalkAgent/build-host --output-on-failure
+cmake -S xWalkDriver -B xWalk-rpi5-hw/xWalkDriver/build-host -DXWALK_AGENT_BUILD_HOST=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build xWalk-rpi5-hw/xWalkDriver/build-host --parallel
+ctest --test-dir xWalk-rpi5-hw/xWalkDriver/build-host --output-on-failure
 
 cmake -S xWalk-rpi5-hw/xWalkHal/interface/xWalkI2c -B xWalk-rpi5-hw/xWalkHal/interface/xWalkI2c/build-host -DXWALK_I2C_BUILD_HOST_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build xWalkI2c/build-host --parallel
@@ -1867,9 +1818,9 @@ cmake -S xWalk-rpi5-hw/xWalkHal/layer1/xWalkBoardControl -B xWalk-rpi5-hw/xWalkH
 cmake --build xWalkBoardControl/build-host --parallel
 ctest --test-dir xWalkBoardControl/build-host --output-on-failure
 
-cmake -S xWalkTrace -B xWalk-rpi5-hw/xWalkTrace/build-host -DXWALK_TRACE_BUILD_HOST_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build xWalk-rpi5-hw/xWalkTrace/build-host --parallel
-ctest --test-dir xWalk-rpi5-hw/xWalkTrace/build-host --output-on-failure
+cmake -S xWalk-rpi5-trace -B xWalk-rpi5-trace/build-host -DXWALK_TRACE_BUILD_HOST_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build xWalk-rpi5-trace/build-host --parallel
+ctest --test-dir xWalk-rpi5-trace/build-host --output-on-failure
 
 cmake -S xWalk-rpi5-hw/xWalkHal/layer1/xWalkGPT -B xWalk-rpi5-hw/xWalkHal/layer1/xWalkGPT/build-host -DXWALK_GPT_BUILD_HOST_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build xWalkGPT/build-host --parallel
@@ -1920,13 +1871,9 @@ ctest --test-dir xWalkUserButton/build-host --output-on-failure
 Typical Linux hardware compilation commands are:
 
 ```bash
-cmake -S xWalkController -B xWalk-rpi5-hw/xWalkController/build-rpi -DXWALK_CLI_BUILD_RPI=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build xWalk-rpi5-hw/xWalkController/build-rpi --parallel
-ctest --test-dir xWalk-rpi5-hw/xWalkController/build-rpi -N -L hardware
-
-cmake -S xWalkAgent -B xWalk-rpi5-hw/xWalkAgent/build-rpi -DXWALK_AGENT_BUILD_RPI=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build xWalk-rpi5-hw/xWalkAgent/build-rpi --parallel
-ctest --test-dir xWalk-rpi5-hw/xWalkAgent/build-rpi -N -L hardware
+cmake -S xWalkDriver -B xWalk-rpi5-hw/xWalkDriver/build-rpi -DXWALK_AGENT_BUILD_RPI=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build xWalk-rpi5-hw/xWalkDriver/build-rpi --parallel
+ctest --test-dir xWalk-rpi5-hw/xWalkDriver/build-rpi -N -L hardware
 
 cmake -S xWalk-rpi5-hw/xWalkHal/interface/xWalkI2c -B xWalk-rpi5-hw/xWalkHal/interface/xWalkI2c/build-rpi -DXWALK_I2C_BUILD_HARDWARE_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build xWalkI2c/build-rpi --parallel
@@ -1975,9 +1922,9 @@ cmake -S xWalk-rpi5-hw/xWalkHal/layer1/xWalkBoardControl -B xWalk-rpi5-hw/xWalkH
 cmake --build xWalkBoardControl/build-rpi --parallel
 ctest --test-dir xWalkBoardControl/build-rpi -N -L hardware
 
-cmake -S xWalkTrace -B xWalk-rpi5-hw/xWalkTrace/build-rpi -DXWALK_TRACE_BUILD_HARDWARE_TESTS=ON
-cmake --build xWalk-rpi5-hw/xWalkTrace/build-rpi --parallel
-ctest --test-dir xWalk-rpi5-hw/xWalkTrace/build-rpi -N -L hardware
+cmake -S xWalk-rpi5-trace -B xWalk-rpi5-trace/build-rpi -DXWALK_TRACE_BUILD_HARDWARE_TESTS=ON
+cmake --build xWalk-rpi5-trace/build-rpi --parallel
+ctest --test-dir xWalk-rpi5-trace/build-rpi -N -L hardware
 
 cmake -S xWalk-rpi5-hw/xWalkHal/layer1/xWalkGPT -B xWalk-rpi5-hw/xWalkHal/layer1/xWalkGPT/build-rpi -DXWALK_GPT_BUILD_HARDWARE_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build xWalkGPT/build-rpi --parallel
@@ -2034,36 +1981,25 @@ command compiles only the production filesystem library.
 
 As of 2026-08-06:
 
-- The standalone xWalkController host suite passes, and its Controller executable
-  builds in the aggregate host and Ubuntu/RPI configurations.
-- The CLI `xCliGoogleTest` runner passes its isolated Controller unit case
-  through strict XML group selection. The independent `xCliSequenceTest`
-  runner passes the bounded command-sequence cases selected from its own strict
-  grouped XML inventory. No CLI-owned physical sequence is registered.
+- The xWalkController component retains configuration only. No Controller C++ executable or Controller-owned test
+  suite is present while the replacement execution architecture is being designed.
 - The xWalk Agent PiCar-X host suite passes with in-memory I2C and GPIO
   callbacks, and its Linux/RPI hardware test compiles without being executed.
 - The xWalk SelfDrive host suite passes with in-memory timing, audio, I2C, and
   GPIO callbacks, and its Linux/RPI production library compiles successfully.
 - The xWalk LineTracking host suite passes with in-memory timing, I2C, and GPIO
   callbacks, and its Linux/RPI production library compiles successfully.
-- The PiCar-X CLI host suite passes with injected console, delay, audio,
-  I2C, and GPIO backends. Its Raspberry Pi main executable compiles, while
-  physical execution remains opt-in.
-- The aggregate host suite includes CLI parsing and dispatch for PiCar-X,
-  foreground line tracking, and preset self-drive actions. External-service
-  commands remain unavailable until their safe process-level backends are composed.
+- The aggregate host suite covers PiCar-X, foreground line tracking, and preset self-drive Agent behavior without
+  providing an application command dispatcher.
 - The I2C Linux backend and `xWalkI2cLinuxHardwareTest` compile successfully.
 - The GPIO core and Linux backend host suite passes through an injected device
   mirror, and the standalone stub simulation runs without opening hardware.
   The Linux GPIO backend and opt-in hardware test compile without execution.
-- The xWalk-rpi5-iw Protobuf/XML contract validates, its generated gRPC C++ library
+- The xWalk-rpi5-iw Protobuf/XML contract validates, its generated Protobuf C++ library
   compiles, and its host schema test passes in the aggregate suite.
-- The SPI core and Linux backend host suite passes through an injected device
-  mirror, and the standalone stub simulation runs without opening hardware.
-  The Agent transaction service and CLI dispatch host tests pass with injected
-  transfers; the Linux spidev backend and opt-in hardware test compile.
-- The CLI `spi transfer <HEX>` path compiles in the complete Raspberry Pi
-  executable without initializing the Robot HAT or other PiCar-X services.
+- The SPI core and Linux backend host suite passes through an injected device mirror, and the standalone stub
+  simulation runs without opening hardware. The Agent transaction service passes with injected transfers; the
+  Linux spidev backend and opt-in hardware test compile.
 - The shared ALSA backend host suite passes with injected operations and the
   standalone stub simulation runs without opening an audio device or changing
   mixer state. Its silent hardware test and hardware simulation compile without
@@ -2209,7 +2145,8 @@ As of 2026-08-06:
   trace selection, and its hardware-independent target compiles successfully.
 - Music callbacks are connected to shared ALSA and its opt-in hardware target compiles.
 - Native Music MP3 decoding is covered by a device-free libsndfile host test.
-- The xWalkBoot host stub passes one-shot lifecycle tests, and its RPi composition target compiles.
+- The former Driver-owned Platform and Boot composition targets and their tests
+  are deleted; no replacement process service exists yet.
 - The Speaker host suite and standalone silent simulation pass with persistent
   trace selection, and its hardware-independent target compiles successfully.
 - Speaker decoding and shared-ALSA playback are covered by host and opt-in hardware targets.
@@ -2218,3 +2155,122 @@ As of 2026-08-06:
 - Host coverage passes enforced minimums of 79 percent for lines and 40 percent
   for branches.
 - Hardware tests have not been executed as part of this verification.
+
+## Cooperative provider interruption
+
+Synchronous providers may borrow the operation owner's atomic cancellation latch while idle.
+The owner keeps it alive until the worker has joined and resets it only before a new operation.
+Providers never infer protocol STOP ownership from this latch. Release local HTTP/process resources before
+propagating `XWalkOperationCancelled` from the common header; this control outcome does not emit an error trace.
+This is an explicit exception to ordinary failure-trace handling. Actual provider and safety-cleanup failures
+retain the existing error path, including when cancellation is also pending. The Controller catches the typed
+interruption at its existing operation boundary and still completes required device cleanup before responding.
+
+Only fixed, bounded diagnostic categories cross the GPB rejection boundary; arbitrary exception/provider text
+stays out of responses. Optional farewell speech requires continued operation permission. Owned speech child
+processes use private process groups, bounded TERM-to-KILL escalation, and direct-child reaping. Never signal
+unrelated processes. The common `owningpointer` alias accepts an optional deleter for scoped resource cleanup.
+
+## Shared camera and process ownership
+
+The Pi Boot platform implementation holds `/run/lock/xwalk-controller.lock` before initializing hardware
+and through device teardown. Put platform-specific ownership in the existing CMake-selected platform source;
+do not add preprocessor flags or conditional compilation to shared Boot code for this behavior. Run one full subscriber for all functions; functional MQTT children use existing private IPC.
+Camera consumers deployed together use `XWALK_CAMERA_FRAME_FILE` to read atomic, bounded JPEG snapshots
+from the native `xWalkCameraSvc`. Keep the file in a private tmpfs runtime directory shared by the same
+service user. Missing, stale, or stalled feeds fail closed without opening a physical fallback camera.
+Updated direct camera providers and the camera service cooperate through `/run/lock/xwalk-camera.lock`.
+Never unlink lease files while any participant is running. Host local-video evaluation bypasses camera sharing.
+Test process ownership and snapshot failure behavior with synthetic frames or recorded media, never hardware.
+
+## Front proximity safety ownership
+
+Keep front-distance GPIO acquisition in the hardware-owning Controller. Its dedicated proximity worker
+uses serialized ultrasonic sampling and enforces the stop locally; traffic inference, MQTT and LLM
+announcements must never gate a motor stop. The same-user, versioned Library proximity IPC has distinct
+`Status`, `AllStop` and clearance-report `Clear` commands; do not reuse Node process-shutdown `Stop`
+for actuator safety.
+A safety stop inhibits paired motors under their existing safety mutex before cancelling Controller
+operations. Lifecycle commands and queued work cannot release the inhibit. Only the owner can release
+inhibition after completed cleanup, zero output and sustained valid clearance with hysteresis. IPC-originated
+stops additionally require fresh traffic clearance based only on sensor data. Camera path assessment is
+local advisory information and cannot request stops or gate recovery. Semantic detections may qualify
+traffic reports through the camera incident policy below.
+Fresh finite negative raw readings count as policy-defined open road, including timeout/error sentinels;
+this policy can mask sensor faults. Failed acquisition, stale data, zero and non-finite readings remain
+unsafe. Negative bumper clearance produced by applying the sensor inset must be clamped to zero,
+not treated as a negative raw sample.
+Recovery may resume a still-requested continuous autonomous session, preserving accepted power, but must
+honor Stop/shutdown and must not replay completed actions or expired manual movement leases.
+Proximity-only request rejection is a nonmodal GUI status; unrelated failures retain their warning behavior.
+
+An explicit manual reverse escape may use a dedicated inhibited-motor lease after cleanup. Keep general
+arming and forward output disabled; only fresh reverse requests renew that lease. Repeated front-stop
+samples may preserve it, but Stop, shutdown, clock rollback and lease expiry must stop it. Autonomous
+recovery must not race a current reverse lease.
+
+## Configuration retention and cleanup
+
+Keep required build, runtime, deployment and CI defaults, schemas, templates,
+and configuration generators tracked in their owning Git submodule. An
+operational fix to an installed configuration must also update its tracked
+source template; a file under `/tmp`, a build directory or a server home is
+not a reproducible source of configuration.
+
+Before cleanup, reset, synchronization or deployment, inventory configuration
+and saved state in every affected submodule and on the target device. Preserve
+local overrides, calibration, account stores, device pairing, credentials and
+installed service configuration outside the cleanup paths, with private access
+permissions. Verify the backup before deleting anything and restore local state
+after synchronization. A request to remove local code changes or build outputs
+does not authorize deleting saved configuration or accounts. Never run blanket
+`git clean -fdx` against a live application or device checkout.
+
+Track sanitized examples for secret-bearing configuration and document how to
+restore them. Never commit passwords, tokens, private keys, live account stores
+or pairing credentials merely to retain configuration. Generated configuration
+must be reproducible from tracked inputs; preserve local overrides separately.
+Before publication, verify required configuration is tracked in the owning
+submodule, not merely present on disk or hidden by an ignore rule.
+
+Traffic proximity IPC and safety broadcasts require a responding Vehicle or All subscriber.
+Other subscriber modes explicitly report inactive in the versioned status. Missing/inactive owners
+suspend traffic AllStop, Clear and warnings; the publisher rechecks eligibility before dispatch.
+Controller-local sensor safety stays independent of this traffic eligibility flag.
+
+Traffic road-block broadcasts are state transitions: one blocked advisory after 0.5 seconds of sustained blockage,
+then one cleared advisory
+only after two seconds of fresh sensor clearance beyond hysteresis (or policy-accepted negative range).
+Vehicle/All inactivity, disconnects and sensor faults pause the episode without clearing its announced state.
+Keep that state across vehicle process restarts for the lifetime of the traffic monitor. Reuse its simulated
+location for both messages. Delivery uncertainty must not automatically retry an already consumed transition.
+
+
+Live Pi proximity announcements use typed transitions and fresh post-blockage semantic camera evidence.
+Always retain immediate sensor-only motor stopping and sensor-only recovery. Speak one local obstacle
+warning per confirmed episode with the bounded native Espeak/ALSA provider; do not claim physical contact.
+Only camera-qualified traffic occupancy may produce a possible traffic-block/heavy-traffic MQTT advisory,
+and only a reported episode may produce a MQTT clearance. Inconclusive/isolated obstacles remain local.
+Skip the periodic observation/risk publication path for live sensor episodes; retain host replay behavior.
+Camera occupancy/count categories are heuristics, not a trained congestion classifier. Require a frame
+acquired after the transition, bounded three-second inference freshness and a currently active fresh
+sensor blockage. Preserve episode state across Vehicle/All cycles, and consume sends before dispatch.
+
+
+Native Pi builds use the repository's guarded build wrapper after power/cooling faults are corrected.
+Serialize guarded builds across build directories with a private per-user lease. Keep one compiler job
+and lower scheduling priority; pause the owned build group at 65C, resume at 55C, abort at 75C or any
+firmware power/throttling fault, and bound cooling waits to 120 seconds. Never weaken firmware checks
+or claim that software load control repairs the supply. Preserve crash evidence and require clean
+telemetry after the corrected hardware has rebooted before resuming load.
+
+## Nested hardware review and uplift
+
+`xWalkPiCarAI` pins `xWalk-rpi5-hw` as one Git submodule. The hardware integration owns five exact gitlinks:
+Driver, AudioResources, Controller, HAL and Library. Preserve their existing paths below `xWalk-rpi5-hw`.
+Hardware component submissions uplift into the hardware integration first. Its module-scoped CI must pass
+before its submitted revision uplifts into the product as one hardware gitlink. Product CI remains complete.
+Never advance a nested component directly in the product index or import an unreviewed GitHub branch tip.
+Tool, IW, Trace, Node, OS and developer notes remain independently owned product dependencies.
+Use explicit GitHub HTTPS URLs for every level, and validate exact Gerrit-submitted ancestry in CI.
+Hardware standalone CI records submitted product and Tool context revisions and runs no physical hardware tests.

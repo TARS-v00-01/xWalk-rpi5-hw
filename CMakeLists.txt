@@ -5,11 +5,19 @@ project(xWalk VERSION 1.0.0 LANGUAGES CXX)
 set(XWALK_RPI5_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 get_filename_component(XWALK_WORKSPACE_ROOT "${XWALK_RPI5_ROOT}/.." ABSOLUTE)
 
+option(XWALK_CONTROLLER_BUILD_MODULE "Build only the Controller terminal and standalone handler stubs" OFF)
+if(XWALK_CONTROLLER_BUILD_MODULE)
+    include(CTest)
+    add_subdirectory(xWalkController)
+    return()
+endif()
+
 include(${XWALK_RPI5_ROOT}/xWalkLibrary/XWalkDependencies.cmake)
 include(CTest)
 include(GNUInstallDirs)
 
-option(XWALK_BUILD_RPI "Build Raspberry Pi backends and the deployable CLI" OFF)
+option(XWALK_BUILD_RPI "Build Raspberry Pi backends and deployment configuration" OFF)
+option(XWALK_BUILD_ALL_BACKENDS "Compile every Linux provider without selecting hardware execution" OFF)
 option(XWALK_ENABLE_STRICT_WARNINGS "Add the host sanity warning extensions" OFF)
 option(XWALK_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(XWALK_ENABLE_THREAD_SANITIZER "Enable ThreadSanitizer for host concurrency tests" OFF)
@@ -47,6 +55,7 @@ xwalk_read_rpi_default(XWALK_DEFAULT_RPI_VOICE_CAPTURE_DEVICE)
 xwalk_read_rpi_default(XWALK_DEFAULT_RPI_VOICE_MIXER_DEVICE)
 xwalk_read_rpi_default(XWALK_DEFAULT_RPI_VOICE_MIXER_ELEMENT)
 xwalk_read_rpi_default(XWALK_DEFAULT_RPI_PIPER_EXECUTABLE)
+xwalk_read_rpi_default(XWALK_DEFAULT_RPI_PIPER_MODEL)
 
 set(XWALK_RPI_PROFILE "${XWALK_DEFAULT_RPI_PROFILE}" CACHE STRING
     "Explicit Robot HAT profile used by the opt-in Raspberry Pi provisioner")
@@ -91,6 +100,8 @@ set(XWALK_RPI_VOICE_MIXER_DEVICE "${XWALK_DEFAULT_RPI_VOICE_MIXER_DEVICE}" CACHE
     "ALSA mixer selected in the generated Raspberry Pi runtime")
 set(XWALK_RPI_VOICE_MIXER_ELEMENT "${XWALK_DEFAULT_RPI_VOICE_MIXER_ELEMENT}" CACHE STRING
     "ALSA mixer element selected in the generated Raspberry Pi runtime")
+set(XWALK_RPI_PIPER_MODEL "${XWALK_DEFAULT_RPI_PIPER_MODEL}" CACHE FILEPATH
+    "Selected Piper .onnx asset; deployment validation requires its companion JSON")
 set(XWALK_RPI_PIPER_EXECUTABLE "${XWALK_DEFAULT_RPI_PIPER_EXECUTABLE}" CACHE FILEPATH
     "Piper executable selected in the generated Raspberry Pi runtime")
 option(XWALK_RPI_WITH_VOSK "Install repository-controlled Vosk assets while provisioning" ON)
@@ -177,8 +188,16 @@ endif()
 
 set(XWALK_RPI_RUNTIME_ROOT "${CMAKE_BINARY_DIR}/../runtime")
 set(XWALK_RPI_RUNTIME_CONFIG_FILE "${XWALK_RPI_RUNTIME_ROOT}/picar-x.conf")
-set(XWALK_PICARX_CONFIG_FILE "${XWALK_RPI_RUNTIME_CONFIG_FILE}" CACHE FILEPATH
-    "Writable PiCar-X runtime configuration compiled into the build-tree CLI")
+# A cached path may be an intentional override, even when it matches an old default.
+# Select defaults without FORCE; use a fresh build tree to verify a changed default.
+if(XWALK_BUILD_RPI)
+    set(XWALK_PICARX_CONFIG_FILE "${XWALK_RPI_RUNTIME_CONFIG_FILE}" CACHE FILEPATH
+        "Writable PiCar-X runtime configuration compiled into Node and Controller")
+else()
+    # Select the host profile before Driver can cache its standalone source configuration.
+    set(XWALK_PICARX_CONFIG_FILE "${CMAKE_BINARY_DIR}/config/picar-x-profile.conf" CACHE FILEPATH
+        "Selected Controller configuration")
+endif()
 
 add_custom_target(host-dependency-check
     COMMAND "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/quality-tool/check-host-quality-dependencies.sh"
@@ -236,15 +255,18 @@ else()
 endif()
 set(XWALK_HAL_BUILD_HOST ${XWALK_ROOT_BUILD_HOST} CACHE BOOL "Controlled by the workspace root" FORCE)
 set(XWALK_HAL_BUILD_RPI ${XWALK_BUILD_RPI} CACHE BOOL "Controlled by the workspace root" FORCE)
-set(XWALK_HAL_BUILD_CLI ON CACHE BOOL "Build the workspace CLI" FORCE)
+set(XWALK_AGENT_BUILD_HOST ${XWALK_ROOT_BUILD_HOST} CACHE BOOL "Controlled by the workspace root" FORCE)
+set(XWALK_AGENT_BUILD_RPI ${XWALK_BUILD_RPI} CACHE BOOL "Controlled by the workspace root" FORCE)
 set(XWALK_CLI_INSTALL_RUNTIME
-    ${XWALK_ROOT_BUILD_HOST} CACHE BOOL "Install the CLI runtime layout" FORCE)
+    ${XWALK_ROOT_BUILD_HOST} CACHE BOOL "Install the retained runtime configuration layout" FORCE)
 if(XWALK_BUILD_RPI)
     set(XWALK_CLI_INSTALL_RUNTIME ON CACHE BOOL
-        "Install the CLI runtime layout" FORCE)
+        "Install the retained runtime configuration layout" FORCE)
 endif()
 
 if(XWALK_BUILD_RPI)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/generate-rpi-runtime.sh")
     execute_process(
         COMMAND
             "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/deploy-tool/generate-rpi-runtime.sh"
@@ -260,6 +282,9 @@ if(XWALK_BUILD_RPI)
             --voice-mixer-device "${XWALK_RPI_VOICE_MIXER_DEVICE}"
             --voice-mixer-element "${XWALK_RPI_VOICE_MIXER_ELEMENT}"
             --piper-executable "${XWALK_RPI_PIPER_EXECUTABLE}"
+            --piper-model "${XWALK_RPI_PIPER_MODEL}"
+            --native-binary "${CMAKE_BINARY_DIR}/xwalk"
+            --configuration-file "${XWALK_PICARX_CONFIG_FILE}"
             --initialize-only
         RESULT_VARIABLE XWALK_RPI_RUNTIME_GENERATION_RESULT
         OUTPUT_VARIABLE XWALK_RPI_RUNTIME_GENERATION_OUTPUT
@@ -270,7 +295,7 @@ if(XWALK_BUILD_RPI)
             "${XWALK_RPI_RUNTIME_GENERATION_OUTPUT}${XWALK_RPI_RUNTIME_GENERATION_ERROR}")
     endif()
     message(STATUS "${XWALK_RPI_RUNTIME_GENERATION_OUTPUT}")
-    message(STATUS "RPi CLI runtime configuration: ${XWALK_PICARX_CONFIG_FILE}")
+    message(STATUS "RPi deployment configuration: ${XWALK_PICARX_CONFIG_FILE}")
     message(STATUS "RPi provisioning selected GPIO device: ${XWALK_RPI_GPIO_DEVICE}")
 endif()
 
@@ -306,7 +331,6 @@ set(XWALK_HAL_HOST_OPTION_NAMES
     XWALK_BUZZER_BUILD_HOST_TESTS
     XWALK_CAMERA_BUILD_HOST_TESTS
     XWALK_CONFIG_BUILD_HOST_TESTS
-    XWALK_CLI_BUILD_HOST
     XWALK_GPIO_BUILD_HOST_TESTS
     XWALK_GPT_BUILD_HOST_TESTS
     XWALK_I2C_BUILD_HOST_TESTS
@@ -321,6 +345,7 @@ set(XWALK_HAL_HOST_OPTION_NAMES
     XWALK_SERVO_BUILD_HOST_TESTS
     XWALK_SPEAKER_BUILD_HOST_TESTS
     XWALK_SPI_BUILD_HOST_TESTS
+    XWALK_TRACE_BUILD_AGENT_HOST_TESTS
     XWALK_TRACE_BUILD_HOST_TESTS
     XWALK_ULTRASONIC_BUILD_HOST_TESTS
     XWALK_USER_BUTTON_BUILD_HOST_TESTS
@@ -334,7 +359,6 @@ set(XWALK_HAL_RPI_OPTION_NAMES
     XWALK_BOARD_CONTROL_BUILD_HARDWARE_TESTS
     XWALK_BUZZER_BUILD_HARDWARE_TESTS
     XWALK_CAMERA_BUILD_HARDWARE_TESTS
-    XWALK_CLI_BUILD_RPI
     XWALK_GPIO_BUILD_HARDWARE_TESTS
     XWALK_GPT_BUILD_HARDWARE_TESTS
     XWALK_I2C_BUILD_HARDWARE_TESTS
@@ -468,9 +492,27 @@ else()
     message(STATUS "xWalk HAL production mode: verification targets are disabled")
 endif()
 
+if(XWALK_BUILD_ALL_BACKENDS)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "The complete backend build requires Linux")
+    endif()
+    foreach(backend IN ITEMS I2C_BUILD_LINUX_BACKEND SPI_BUILD_LINUX_BACKEND GPIO_BUILD_LINUX_BACKEND
+            AUDIO_BUILD_LINUX_BACKEND CAMERA_BUILD_LINUX_BACKEND CAMERA_BUILD_OPENCV_BACKEND
+            LANGUAGE_MODEL_BUILD_OLLAMA_PROVIDER GPT_BUILD_STT_ALSA_BACKEND GPT_BUILD_TTS_ALSA_BACKEND
+            GPT_BUILD_VOSK_PROVIDER GPT_BUILD_ESPEAK_PROVIDER GPT_BUILD_PIPER_PROVIDER
+            GPT_BUILD_PICO2WAVE_PROVIDER MUSIC_BUILD_ALSA_BACKEND MUSIC_BUILD_SNDFILE_DECODER
+            SPEAKER_BUILD_ALSA_BACKEND UTILS_BUILD_LINUX_BACKEND)
+        set(XWALK_${backend} ON CACHE BOOL "Required by the complete backend build" FORCE)
+    endforeach()
+endif()
+
 add_subdirectory(xWalkLibrary/common)
+# A composing product may select its own generated IW copy before adding the hardware tree.
+if(NOT XWALK_IW_GENERATED_DIRECTORY)
+    set(XWALK_IW_GENERATED_DIRECTORY "${XWALK_RPI5_ROOT}/xWalkController/auto-gen")
+endif()
 add_subdirectory("${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-iw" xWalk-rpi5-iw)
-add_subdirectory(xWalkTrace)
+add_subdirectory("${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-trace" xWalkTrace)
 add_subdirectory(xWalkHal/interface/xWalkI2c)
 add_subdirectory(xWalkHal/interface/xWalkSpi)
 add_subdirectory(xWalkHal/interface/xWalkGpio)
@@ -511,9 +553,10 @@ endif()
 if(BUILD_TESTING)
     add_subdirectory(xWalkHal/xWalkTest/xSequenceTest)
 endif()
-if(XWALK_HAL_BUILD_CLI OR XWALK_HAL_BUILD_HOST OR XWALK_HAL_BUILD_RPI)
-    add_subdirectory(xWalkController)
-endif()
+add_subdirectory(xWalkDriver)
+set(XWALK_CONTROLLER_BUILD_HOST_TESTS ${XWALK_ROOT_BUILD_HOST} CACHE BOOL
+    "Controlled by the workspace root" FORCE)
+add_subdirectory(xWalkController)
 if(XWALK_CLI_INSTALL_RUNTIME)
     install(PROGRAMS
         "${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-tool/shell-agent/env-tool/license/xWalkEnv.sh"
@@ -567,7 +610,6 @@ if(XWALK_BUILD_RPI)
                 --camera "${XWALK_RPI_CAMERA}"
                 --apply
             COMMAND ${XWALK_RPI_SETUP_COMMAND}
-            DEPENDS xwalk-picarx-control
             WORKING_DIRECTORY "${XWALK_WORKSPACE_ROOT}"
             USES_TERMINAL
             VERBATIM)
@@ -576,7 +618,6 @@ if(XWALK_BUILD_RPI)
             COMMAND "${CMAKE_COMMAND}" -E echo
                 "Provisioning ${XWALK_RPI_PROFILE} with selected GPIO device ${XWALK_RPI_GPIO_DEVICE}"
             COMMAND ${XWALK_RPI_SETUP_COMMAND}
-            DEPENDS xwalk-picarx-control
             WORKING_DIRECTORY "${XWALK_WORKSPACE_ROOT}"
             USES_TERMINAL
             VERBATIM)
@@ -760,7 +801,7 @@ if(XWALK_CPPCHECK_EXECUTABLE AND CMAKE_EXPORT_COMPILE_COMMANDS)
             "--project=${CMAKE_BINARY_DIR}/compile_commands.json"
             --enable=warning,performance,portability
             --error-exitcode=1
-            "-i${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-iw/auto-gen"
+            "-i${XWALK_IW_GENERATED_DIRECTORY}"
             --suppress=missingIncludeSystem
             --suppress=assertWithSideEffect
             "--suppressions-list=${XWALK_CPPCHECK_SUPPRESSIONS}"
@@ -771,7 +812,7 @@ if(XWALK_CPPCHECK_EXECUTABLE AND CMAKE_EXPORT_COMPILE_COMMANDS)
             "--project=${CMAKE_BINARY_DIR}/compile_commands.json"
             --enable=warning,style,performance,portability
             --inconclusive
-            "-i${XWALK_WORKSPACE_ROOT}/xWalk-rpi5-iw/auto-gen"
+            "-i${XWALK_IW_GENERATED_DIRECTORY}"
             --suppress=missingIncludeSystem
             "--suppressions-list=${XWALK_CPPCHECK_SUPPRESSIONS}"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

@@ -15,6 +15,7 @@ BinPackParameters: false
 BreakBeforeBraces: Allman
 ColumnLimit: 120
 ContinuationIndentWidth: 4
+FixNamespaceComments: false
 IndentAccessModifiers: true
 IndentCaseBlocks: true
 IndentCaseLabels: true

@@ -1,15 +1,14 @@
 {
-    "C_Cpp.intelliSenseCacheSize": 0,
-    "C_Cpp.errorSquiggles": "enabled",
     "files.associations": {
         "*.h": "cpp"
     },
-    "cmake.sourceDirectory": "${workspaceFolder}/xWalk-rpi5-hw",
+    "cmake.sourceDirectory": "${workspaceFolder}",
     "cmake.configureOnOpen": true,
     "cmake.useCMakePresets": "always",
-    "github-actions.remote-name": "github-actions",
-    "github-actions.workflows.pinned.refresh.enabled": false,
-    "github-actions.workflows.pinned.workflows": [
-        ".github/workflows/host-quality.yml"
-    ]
+    "C_Cpp.errorSquiggles": "enabled",
+    "C_Cpp.intelliSenseEngine": "default",
+    "C_Cpp.files.exclude": {
+        "**/.git": true,
+        "**/build-host/controller-boot": true
+    }
 }

@@ -11,7 +11,6 @@ then
     cmake -E remove_directory "${BUILD_DIRECTORY}"
 else
     cmake --fresh -S "${XWALK_RPI5_ROOT}" -B "${BUILD_DIRECTORY}" \
-        -DXWALK_CLI_BUILD_HOST=ON \
         -DCMAKE_BUILD_TYPE=Debug \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
     cmake --build "${BUILD_DIRECTORY}" --parallel

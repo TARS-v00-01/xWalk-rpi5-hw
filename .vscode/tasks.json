@@ -1,0 +1,89 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "xWalk: Configure MQTT node navigation",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--preset",
+                "host",
+                "-S",
+                "${workspaceFolder}/../xWalk-rpi5-node/xWalkIoT"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/.."
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "xWalk: Configure hardware navigation",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--preset",
+                "host-debug",
+                "-S",
+                "${workspaceFolder}/../xWalk-rpi5-hw"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/.."
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "xWalk: Configure RPI5 provider navigation",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}/../xWalk-rpi5-hw",
+                "-B",
+                "${workspaceFolder}/../build-host/rpi5-navigation",
+                "-DXWALK_BUILD_RPI=ON",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                "-DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/.."
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "xWalk: Refresh all C++ navigation",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "xWalk: Configure hardware navigation",
+                "xWalk: Configure RPI5 provider navigation",
+                "xWalk: Configure MQTT node navigation",
+                "xWalk: Configure traffic navigation",
+                "xWalk: Configure camera navigation"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "xWalk: Configure traffic navigation",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--preset",
+                "host",
+                "-S",
+                "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "xWalk: Configure camera navigation",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkCameraSvc",
+                "-B",
+                "${workspaceFolder}/../xWalk-rpi5-node/xWalkTrafCtrl/xWalkCameraSvc/build-host"
+            ],
+            "problemMatcher": []
+        }
+    ]
+}
