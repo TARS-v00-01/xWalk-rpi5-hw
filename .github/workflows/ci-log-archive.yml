@@ -1,0 +1,50 @@
+# No source checkout or reviewed code execution: archive GitHub's already-masked logs only.
+name: xWalk CI Log Archive
+on:
+  workflow_run:
+    workflows: ['xWalk Hardware Quality']
+    types: [completed]
+permissions:
+  actions: read
+jobs:
+  logs:
+    name: Download all action logs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Collect exact run-attempt logs, including failed and cancelled actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_RUN: ${{ github.event.workflow_run.id }}
+          SOURCE_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          SOURCE_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          downloaded=false
+          for retry in 1 2 3 4 5 6; do
+            if gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN/attempts/$SOURCE_ATTEMPT/logs" > ci-logs/actions.zip; then
+              downloaded=true
+              break
+            fi
+            echo "Waiting for completed logs ($retry/6)"
+            sleep 5
+          done
+          "$downloaded"
+          python3 -m zipfile --test ci-logs/actions.zip
+          gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN/attempts/$SOURCE_ATTEMPT" > ci-logs/run.json
+          printf '[Open original run and individual action logs](%s)\n' "$SOURCE_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish one archive containing every action log
+        id: archive
+        uses: actions/upload-artifact@v6
+        with:
+          name: xwalk-all-action-logs-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          path: ci-logs/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: Add dashboard download link
+        env:
+          ARTIFACT_URL: ${{ steps.archive.outputs.artifact-url }}
+        run: printf '[Download all action logs](%s)\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
