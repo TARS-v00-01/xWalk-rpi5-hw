@@ -83,7 +83,7 @@ namespace xwalk::hardware::test
         EXPECT_EQ(capture.clients[responses - 1U], 23U);
         expectStopped();
     }
-    /** @brief ADC and BoardControl feed the production minute accumulator without wall-clock waits. */
+    /** @brief ADC and BoardControl feed the production rolling-minute average without wall-clock waits. */
     TEST_P(XWalkHardwareSequence, BatteryWindowWithSharedSensorBus)
     {
         auto& simulation = boot->modules()->platform->simulation;
@@ -93,9 +93,10 @@ namespace xwalk::hardware::test
             simulation.setBatteryVoltage(sample <= 6U ? 7.2 : 8.0);
             const float64 voltage = boot->modules()->boardControl->batteryVoltage();
             window.sample(static_cast<float64>(sample * 5U), voltage);
-            if (sample < 12U)
+            if (sample == 1U)
             {
-                EXPECT_DOUBLE_EQ(window.average, 0.0);
+                // The first sample already gives a value.
+                EXPECT_NEAR(window.average, 7.2, 0.02);
             }
         }
         EXPECT_EQ(window.samples, 12U);
@@ -103,7 +104,8 @@ namespace xwalk::hardware::test
         simulation.setBatteryVoltage(8.2);
         const float64 voltage = boot->modules()->boardControl->batteryVoltage();
         window.sample(65.0, voltage);
-        EXPECT_NEAR(window.average, 7.6, 0.02);
+        // The minute rolls on: the oldest 7.2 V sample is replaced by the new 8.2 V one.
+        EXPECT_NEAR(window.average, 7.68, 0.02);
         SensorReq sensor{};
         sensor.has_request = true;
         sensor.request.type = static_cast<decltype(sensor.request.type)>(1);

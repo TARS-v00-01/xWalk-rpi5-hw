@@ -2196,6 +2196,9 @@ inhibition after completed cleanup, zero output and sustained valid clearance wi
 stops additionally require fresh traffic clearance based only on sensor data. Camera path assessment is
 local advisory information and cannot request stops or gate recovery. Semantic detections may qualify
 traffic reports through the camera incident policy below.
+Physical ultrasonic echo timing uses captured kernel edge timestamps rather than userspace polling times.
+Publish every completed acquisition, including ordinary readers’ retries, to the safety observer with
+its original trigger timestamp. Cached reads must never renew freshness or bypass the 250 ms stale limit.
 Fresh finite negative raw readings count as policy-defined open road, including timeout/error sentinels;
 this policy can mask sensor faults. Failed acquisition, stale data, zero and non-finite readings remain
 unsafe. Negative bumper clearance produced by applying the sensor inset must be clamped to zero,
